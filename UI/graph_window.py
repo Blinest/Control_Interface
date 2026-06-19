@@ -1,16 +1,16 @@
 # ui/graph_window.py
 import os
-import csv
 from datetime import datetime
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QCheckBox,
-    QWidget, QScrollArea, QApplication, QDoubleSpinBox, QListWidget,
+    QWidget, QScrollArea, QDoubleSpinBox, QListWidget,
     QListWidgetItem, QMessageBox
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 import pyqtgraph as pg
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from . import styles
 
 # ===================== 抽象基类：绘图窗口 =====================
 class BasePlotWindow(QDialog):
@@ -48,9 +48,18 @@ class BasePlotWindow(QDialog):
 
         # ---------- 工具栏 ----------
         toolbar_layout = QHBoxLayout()
-        btn_style = "QPushButton { background: #f0e9de; color: #2e241b; border: 1px solid #c4b49a; border-radius: 4px; padding: 5px 10px; }"
-        accent_btn_style = "QPushButton { background: #b5956b; color: white; border: none; border-radius: 4px; padding: 5px 10px; font-weight: bold; }"
-        reset_btn_style = "QPushButton { background: #d9c6a3; color: #2e241b; border: 1px solid #c4b49a; border-radius: 4px; padding: 5px 10px; }"
+        btn_style = (
+            f"QPushButton {{ background: {styles.BG_BTN}; color: {styles.TEXT_PRIMARY}; "
+            f"border: 1px solid {styles.BORDER_DEFAULT}; border-radius: 4px; padding: 5px 10px; }}"
+        )
+        accent_btn_style = (
+            f"QPushButton {{ background: {styles.ACCENT}; color: {styles.TEXT_LIGHT}; "
+            f"border: none; border-radius: 4px; padding: 5px 10px; font-weight: bold; }}"
+        )
+        reset_btn_style = (
+            f"QPushButton {{ background: {styles.BG_TOOLBAR}; color: {styles.TEXT_PRIMARY}; "
+            f"border: 1px solid {styles.BORDER_DEFAULT}; border-radius: 4px; padding: 5px 10px; }}"
+        )
 
         self.btn_focus = QPushButton("🎯 一键聚焦")
         self.btn_focus_x = QPushButton("📏 X轴聚焦")
@@ -102,7 +111,7 @@ class BasePlotWindow(QDialog):
 
         # ---------- 坐标显示标签 ----------
         self.coord_label = QLabel("点击曲线查看该点坐标")
-        self.coord_label.setStyleSheet("background-color: #f0e9de; border: 1px solid #c4b49a; border-radius: 4px; padding: 5px 10px; font-family: monospace; font-size: 10pt; color: #5a4636;")
+        self.coord_label.setStyleSheet(styles.style_graph_coord_label())
         self.coord_label.setMinimumHeight(60)
         self.coord_label.setWordWrap(True)
         main_layout.addWidget(self.coord_label)
@@ -143,12 +152,12 @@ class BasePlotWindow(QDialog):
         self.canvas.draw_idle()
 
     def _apply_style(self):
-        self.setStyleSheet("""
-            QDialog { background-color: #fdfaf5; }
-            QLabel { color: #5a4636; }
-            QCheckBox { color: #5a4636; font-weight: bold; }
-            QDoubleSpinBox { background: #f0e9de; border: 1px solid #c4b49a; border-radius: 4px; padding: 2px 5px; color: #2e241b; }
-            QScrollArea { border: 1px solid #c4b49a; border-radius: 4px; background: #fdfaf5; }
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {styles.GRAPH_DIALOG_BG}; }}
+            QLabel {{ color: {styles.TEXT_SECONDARY}; }}
+            QCheckBox {{ color: {styles.TEXT_SECONDARY}; font-weight: bold; }}
+            QDoubleSpinBox {{ background: {styles.BG_BTN}; border: 1px solid {styles.BORDER_DEFAULT}; border-radius: 4px; padding: 2px 5px; color: {styles.TEXT_PRIMARY}; }}
+            QScrollArea {{ border: 1px solid {styles.BORDER_DEFAULT}; border-radius: 4px; background: {styles.GRAPH_DIALOG_BG}; }}
         """)
 
     def set_controller(self, controller):
@@ -212,34 +221,40 @@ class BaseHistoryDialog(QDialog):
         layout = QVBoxLayout(self)
 
         title_label = QLabel("📁 双击文件加载历史数据")
-        title_label.setStyleSheet("font-size: 10pt; font-weight: bold; padding: 5px; color: #5a4636;")
+        title_label.setStyleSheet(f"font-size: 10pt; font-weight: bold; padding: 5px; color: {styles.TEXT_SECONDARY};")
         layout.addWidget(title_label)
 
         self.file_list = QListWidget()
-        self.file_list.setStyleSheet("""
-            QListWidget { background-color: #fbf7f0; border: 1px solid #c4b49a; border-radius: 4px; font-size: 10pt; color: #2e241b; }
-            QListWidget::item { padding: 6px; border-bottom: 1px solid #c4b49a; }
-            QListWidget::item:selected { background-color: #b5956b; color: white; }
-            QListWidget::item:hover { background-color: #e8dfd0; }
+        self.file_list.setStyleSheet(f"""
+            QListWidget {{ background-color: {styles.GRAPH_FIGURE_BG}; border: 1px solid {styles.BORDER_DEFAULT}; border-radius: 4px; font-size: 10pt; color: {styles.TEXT_PRIMARY}; }}
+            QListWidget::item {{ padding: 6px; border-bottom: 1px solid {styles.BORDER_DEFAULT}; }}
+            QListWidget::item:selected {{ background-color: {styles.ACCENT}; color: {styles.TEXT_LIGHT}; }}
+            QListWidget::item:hover {{ background-color: {styles.BG_HOVER}; }}
         """)
         self.file_list.itemDoubleClicked.connect(self._on_item_double_clicked)
         layout.addWidget(self.file_list)
 
         btn_layout = QHBoxLayout()
         btn_refresh = QPushButton("🔄 刷新列表")
-        btn_refresh.setStyleSheet("QPushButton { background: #f0e9de; color: #2e241b; border: 1px solid #c4b49a; border-radius: 4px; padding: 5px 10px; }")
+        btn_refresh.setStyleSheet(
+            f"QPushButton {{ background: {styles.BG_BTN}; color: {styles.TEXT_PRIMARY}; "
+            f"border: 1px solid {styles.BORDER_DEFAULT}; border-radius: 4px; padding: 5px 10px; }}"
+        )
         btn_refresh.clicked.connect(self.refresh_list)
         btn_layout.addWidget(btn_refresh)
         btn_layout.addStretch()
 
         btn_close = QPushButton("关闭")
-        btn_close.setStyleSheet("QPushButton { background: #d9c6a3; color: #2e241b; border: 1px solid #c4b49a; border-radius: 4px; padding: 5px 10px; }")
+        btn_close.setStyleSheet(
+            f"QPushButton {{ background: {styles.BG_TOOLBAR}; color: {styles.TEXT_PRIMARY}; "
+            f"border: 1px solid {styles.BORDER_DEFAULT}; border-radius: 4px; padding: 5px 10px; }}"
+        )
         btn_close.clicked.connect(self.reject)
         btn_layout.addWidget(btn_close)
         layout.addLayout(btn_layout)
 
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #997b5e; font-size: 10pt; padding: 3px;")
+        self.status_label.setStyleSheet(f"color: {styles.GRAPH_STATUS_CLR}; font-size: 10pt; padding: 3px;")
         layout.addWidget(self.status_label)
 
     def _get_data_dir(self):
@@ -289,9 +304,9 @@ class GraphWindowUI(BasePlotWindow):
 
     def _create_plot_area(self):
         pg.setConfigOptions(antialias=True)
-        self.plot_widget = pg.PlotWidget(background='#fdfaf5')
+        self.plot_widget = pg.PlotWidget(background=styles.GRAPH_DIALOG_BG)
         self.plot_widget.addLegend()
-        self.plot_widget.setLabel('bottom', '时间', units='秒', color='#5a4636')
+        self.plot_widget.setLabel('bottom', '时间', units='秒', color=styles.GRAPH_AXES_COLOR)
         self.plot_widget.showGrid(x=True, y=True, alpha=0.2)
         self.plot_widget.setLimits(xMin=0)
         self.plot_widget.setMenuEnabled(True)
@@ -300,15 +315,14 @@ class GraphWindowUI(BasePlotWindow):
 
     def _init_checkboxes(self):
         self.chk_layout = QHBoxLayout()
-        colors = ['#b5956b', '#c46b5b', '#7a8b5e', '#4a6b8a',
-                  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
+        colors = styles.CURVE_COLORS
         prefix = "电机" if self.is_motor else "传感器"
         self.checkboxes = []
         for i in range(self.num_devices):
             chk = QCheckBox(f"{prefix} {i + 1}")
             chk.setChecked(True)
             color = colors[i % len(colors)]
-            chk.setStyleSheet(f"color: {color}; font-weight: bold;")
+            chk.setStyleSheet(styles.style_checkbox_color(color))
             self.chk_layout.addWidget(chk)
             self.checkboxes.append(chk)
             # 创建曲线（稍后在 _recreate_curves 中也能用）
@@ -325,8 +339,7 @@ class GraphWindowUI(BasePlotWindow):
 
     def _create_curves_for_devices(self, num_devices):
         # 创建曲线对象，存储到 self.curves
-        colors = ['#b5956b', '#c46b5b', '#7a8b5e', '#4a6b8a',
-                  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
+        colors = styles.CURVE_COLORS
         prefix = "电机" if self.is_motor else "传感器"
         self.curves = []
         for i in range(num_devices):
@@ -358,14 +371,13 @@ class GraphWindowUI(BasePlotWindow):
             if item.widget():
                 item.widget().deleteLater()
 
-        colors = ['#b5956b', '#c46b5b', '#7a8b5e', '#4a6b8a',
-                  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
+        colors = styles.CURVE_COLORS
         prefix = "电机" if self.is_motor else "传感器"
         for i in range(num_devices):
             chk = QCheckBox(f"{prefix} {i + 1}")
             chk.setChecked(True)
             color = colors[i % len(colors)]
-            chk.setStyleSheet(f"color: {color}; font-weight: bold;")
+            chk.setStyleSheet(styles.style_checkbox_color(color))
             self.chk_layout.addWidget(chk)
             self.checkboxes.append(chk)
 
@@ -413,37 +425,37 @@ class BendGraphWindow(BasePlotWindow):
         self.btn_focus_y.clicked.connect(self._hide_vline)
 
     def _create_plot_area(self):
-        self.figure = Figure(figsize=(8, 4), facecolor='#fbf7f0')
+        self.figure = Figure(figsize=(8, 4), facecolor=styles.GRAPH_FIGURE_BG)
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_facecolor('#fdfaf5')
+        self.ax.set_facecolor(styles.GRAPH_DIALOG_BG)
         for spine in self.ax.spines.values():
-            spine.set_color('#c4b49a')
-        self.ax.tick_params(colors='#5a4636')
-        self.ax.set_xlabel('时间 (秒)', color='#5a4636')
-        self.ax.set_ylabel('角度 (度)', color='#5a4636')
-        self.ax.set_title('弯曲角度实时曲线', color='#5a4636')
+            spine.set_color(styles.GRAPH_SPINE_COLOR)
+        self.ax.tick_params(colors=styles.GRAPH_AXES_COLOR)
+        self.ax.set_xlabel('时间 (秒)', color=styles.GRAPH_AXES_COLOR)
+        self.ax.set_ylabel('角度 (度)', color=styles.GRAPH_AXES_COLOR)
+        self.ax.set_title('弯曲角度实时曲线', color=styles.GRAPH_AXES_COLOR)
         self.main_layout.addWidget(self.canvas)
 
         # 创建曲线对象
-        self.line_target1, = self.ax.plot([], [], color='#b5956b', linewidth=2, label='第一段目标')
-        self.line_current1, = self.ax.plot([], [], color='#c46b5b', linewidth=2, label='第一段当前')
-        self.line_target2, = self.ax.plot([], [], color='#7a8b5e', linewidth=2, label='第二段目标')
-        self.line_current2, = self.ax.plot([], [], color='#4a6b8a', linewidth=2, label='第二段当前')
-        self.ax.legend(loc='upper right', framealpha=0.3, edgecolor='#c4b49a')
+        self.line_target1, = self.ax.plot([], [], color=styles.CURVE_COLORS[0], linewidth=2, label='第一段目标')
+        self.line_current1, = self.ax.plot([], [], color=styles.CURVE_COLORS[1], linewidth=2, label='第一段当前')
+        self.line_target2, = self.ax.plot([], [], color=styles.CURVE_COLORS[2], linewidth=2, label='第二段目标')
+        self.line_current2, = self.ax.plot([], [], color=styles.CURVE_COLORS[3], linewidth=2, label='第二段当前')
+        self.ax.legend(loc='upper right', framealpha=0.3, edgecolor=styles.GRAPH_SPINE_COLOR)
         # 添加红色垂直虚线
         self.vline = self.ax.axvline(x=0, color='red', linestyle='--', linewidth=1, alpha=0.8)
         self.vline.set_visible(False)
 
     def _init_checkboxes(self):
         self.chk_layout = QHBoxLayout()
-        colors = {'第一段目标': '#b5956b', '第一段当前': '#c46b5b',
-                  '第二段目标': '#7a8b5e', '第二段当前': '#4a6b8a'}
+        colors = {'第一段目标': styles.CURVE_COLORS[0], '第一段当前': styles.CURVE_COLORS[1],
+                  '第二段目标': styles.CURVE_COLORS[2], '第二段当前': styles.CURVE_COLORS[3]}
         self.checkboxes = []
         for name, color in colors.items():
             chk = QCheckBox(name)
             chk.setChecked(True)
-            chk.setStyleSheet(f"color: {color}; font-weight: bold;")
+            chk.setStyleSheet(styles.style_checkbox_color(color))
             chk.stateChanged.connect(self._on_checkbox_changed)
             self.chk_layout.addWidget(chk)
             self.checkboxes.append(chk)

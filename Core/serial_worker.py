@@ -1,7 +1,6 @@
 import os
 from PyQt5.QtCore import QThread, pyqtSignal
 import serial
-import serial.tools.list_ports
 
 class SerialWorker(QThread):
     signal_data = pyqtSignal(bytes)

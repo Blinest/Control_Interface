@@ -7,15 +7,16 @@ import struct
 import math
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QGridLayout,
                              QLabel, QComboBox, QDoubleSpinBox, QPushButton, QTabWidget,
-                             QFrame, QSplitter, QMessageBox, QGraphicsDropShadowEffect, QAbstractSpinBox, QScrollArea)
+                             QFrame, QSplitter, QMessageBox, QAbstractSpinBox, QScrollArea)
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot
 
 
+from . import styles
 from Core.serial_worker import SerialWorker
 from Core.auth import GlobalHistory
 from Core.protocol import ProtocolParser, DataFilter
 # 自定义类
-from .widgets import AnimatedButton
+from .widgets import AnimatedButton, SensorDiskWidget
 from Utils.controller import PID
 # 工具类
 import time
@@ -140,16 +141,12 @@ class DeviceTab(QWidget):
         g_power = QGroupBox("1. 系统操作权限")
         l_power = QHBoxLayout(g_power)
 
-        self.btn_toggle = AnimatedButton("▶ 启动控制系统","#107C10", "#063A06")
+        self.btn_toggle = AnimatedButton("▶ 启动控制系统", styles.COLOR_SUCCESS, styles.COLOR_SUCCESS_DARK)
         self.btn_toggle.setCheckable(True)
 
-        shadow = QGraphicsDropShadowEffect()
         self.btn_toggle.toggled.connect(self.sys_toggle)
-        self.btn_toggle.setGraphicsEffect(shadow)
 
-        self.btn_stop = AnimatedButton("⏹紧急停止","red", "#A80000")
-        shadow = QGraphicsDropShadowEffect()
-        self.btn_stop.setGraphicsEffect(shadow)
+        self.btn_stop = AnimatedButton("⏹紧急停止", styles.COLOR_DANGER, styles.COLOR_DANGER_DARK)
         self.btn_stop.setProperty("class", "emergency")
         self.btn_stop.clicked.connect(self.sys_stop)
 
@@ -159,7 +156,7 @@ class DeviceTab(QWidget):
 
         g_quick = QGroupBox("2. 臂体弯曲控制")
         l_quick = QVBoxLayout(g_quick)
-        self.btn_home = AnimatedButton("⌂ 一键归中","#1E1E1E","#505050")
+        self.btn_home = AnimatedButton("⌂ 一键归中", styles.COLOR_DARK, styles.COLOR_GREY)
         self.btn_home.clicked.connect(self.send_home_command)
         l_quick.addWidget(self.btn_home)
 
@@ -167,10 +164,10 @@ class DeviceTab(QWidget):
         self.spin_bend1 = self._create_custom_spinbox(0, 90, 0, prefix="第一段角度: ", suffix='°')
         self.spin_bend1.spin.valueChanged.connect(lambda: setattr(self, 'angle1_modified', True))
 
-        self.btn_s1_up = AnimatedButton("↑上", "#1E1E1E", "#505050")
-        self.btn_s1_down = AnimatedButton("↓下", "#1E1E1E", "#505050")
-        self.btn_s1_left = AnimatedButton("←左", "#1E1E1E", "#505050")
-        self.btn_s1_right = AnimatedButton("→右", "#1E1E1E", "#505050")
+        self.btn_s1_up = AnimatedButton("↑上", styles.COLOR_DARK, styles.COLOR_GREY)
+        self.btn_s1_down = AnimatedButton("↓下", styles.COLOR_DARK, styles.COLOR_GREY)
+        self.btn_s1_left = AnimatedButton("←左", styles.COLOR_DARK, styles.COLOR_GREY)
+        self.btn_s1_right = AnimatedButton("→右", styles.COLOR_DARK, styles.COLOR_GREY)
         self.btn_s1_up.clicked.connect(lambda: self.direction_bend('1', "up"))
         self.btn_s1_down.clicked.connect(lambda: self.direction_bend('1', "down"))
         self.btn_s1_left.clicked.connect(lambda: self.direction_bend('1', "left"))
@@ -182,7 +179,7 @@ class DeviceTab(QWidget):
         l_section1.addWidget(self.btn_s1_left)
         l_section1.addWidget(self.btn_s1_right)
 
-        self.btn_bend_all = AnimatedButton("臂体弯曲", "#00BCD4", "#505050")
+        self.btn_bend_all = AnimatedButton("臂体弯曲", styles.COLOR_INFO, styles.COLOR_GREY)
         self.btn_bend_all.clicked.connect(self.send_bend_combined)
         l_section1.addWidget(self.btn_bend_all)        # 臂体弯曲
 
@@ -192,10 +189,10 @@ class DeviceTab(QWidget):
         self.spin_bend2 = self._create_custom_spinbox(0, 70, 0, prefix="第二段角度: ", suffix="°")
         self.spin_bend2.spin.valueChanged.connect(lambda: setattr(self, 'angle2_modified', True))
 
-        self.btn_s2_up = AnimatedButton("↑上", "#1E1E1E", "#505050")
-        self.btn_s2_down = AnimatedButton("↓下", "#1E1E1E", "#505050")
-        self.btn_s2_left = AnimatedButton("←左", "#1E1E1E", "#505050")
-        self.btn_s2_right = AnimatedButton("→右", "#1E1E1E", "#505050")
+        self.btn_s2_up = AnimatedButton("↑上", styles.COLOR_DARK, styles.COLOR_GREY)
+        self.btn_s2_down = AnimatedButton("↓下", styles.COLOR_DARK, styles.COLOR_GREY)
+        self.btn_s2_left = AnimatedButton("←左", styles.COLOR_DARK, styles.COLOR_GREY)
+        self.btn_s2_right = AnimatedButton("→右", styles.COLOR_DARK, styles.COLOR_GREY)
         self.btn_s2_up.clicked.connect(lambda: self.direction_bend('2', "up"))
         self.btn_s2_down.clicked.connect(lambda: self.direction_bend('2', "down"))
         self.btn_s2_left.clicked.connect(lambda: self.direction_bend('2', "left"))
@@ -204,7 +201,7 @@ class DeviceTab(QWidget):
 
 
 
-        self.btn_closed_bend = AnimatedButton("循环寿命检测","#FF8C00","#B85C00")
+        self.btn_closed_bend = AnimatedButton("循环寿命检测", styles.COLOR_WARNING, styles.COLOR_WARNING_DARK)
         self.btn_closed_bend.clicked.connect(self.send_closed_loop_bend_command)
 
         l_section2.addWidget(self.spin_bend2)
@@ -224,7 +221,7 @@ class DeviceTab(QWidget):
         h_pid.addWidget(self.spin_ki)
         self.spin_kd = self._create_custom_spinbox(0, 10, 0, prefix="kd: ", step=0.01)
         h_pid.addWidget(self.spin_kd)
-        btn_apply_pid = AnimatedButton("应用PID参数", "#1E1E1E","#505050")
+        btn_apply_pid = AnimatedButton("应用PID参数", styles.COLOR_DARK, styles.COLOR_GREY)
         btn_apply_pid.clicked.connect(self.apply_pid_params)
         h_pid.addWidget(btn_apply_pid)
         l_quick.addLayout(h_pid)
@@ -237,13 +234,13 @@ class DeviceTab(QWidget):
         self.spin_m_pos = self._create_custom_spinbox(-80, 80, 0, prefix="位移：", suffix='mm')
         self.spin_m_vel = self._create_custom_spinbox(-20, 20, 10, prefix="速度: ", suffix=" mm/s")
         self.spin_m_acc = self._create_custom_spinbox(-10, 10, 10, prefix="加速度: ", suffix=" mm/s^2")
-        self.btn_send_m = AnimatedButton("发至电机","#00BCD4","#505050")
+        self.btn_send_m = AnimatedButton("发至电机", styles.COLOR_INFO, styles.COLOR_GREY)
         self.btn_send_m.clicked.connect(self.send_motor)
         f_addr.addWidget(QLabel("电机ID:"), 0, 0)
         f_addr.addWidget(self.cb_motor_id, 0, 1)
         f_addr.addWidget(self.btn_send_m, 0, 2)
         self.motor_status_ball = QLabel("●")
-        self.motor_status_ball.setStyleSheet("color: #c46b5b; font-size: 8pt;")
+        self.motor_status_ball.setStyleSheet(styles.style_status_ball_off())
         f_addr.addWidget(self.motor_status_ball, 0, 3)
         self.cb_motor_id.currentIndexChanged.connect(self.update_motor_status_ball)
         f_addr.addWidget(self.spin_m_pos, 1, 0)
@@ -254,7 +251,7 @@ class DeviceTab(QWidget):
         h_cycle = QHBoxLayout()
         self.lbl_cycle_count = QLabel("循环次数: 0")
         self.lbl_cycle_count.setStyleSheet("font-weight: bold; color: #b5956b;")
-        btn_reset_cycle = AnimatedButton("重置计数", "#1E1E1E", "#505050")
+        btn_reset_cycle = AnimatedButton("重置计数", styles.COLOR_DARK, styles.COLOR_GREY)
         btn_reset_cycle.clicked.connect(self.reset_cycle_count)
         h_cycle.addWidget(self.lbl_cycle_count)
         h_cycle.addStretch()
@@ -271,7 +268,6 @@ class DeviceTab(QWidget):
         h_sensor_line = QHBoxLayout()
         h_sensor_line.addWidget(QLabel("压力传感器 ID:"))
         self.cb_sensor_monitor = QComboBox()
-        self.cb_sensor_monitor.currentIndexChanged.connect(self.update_sensor_monitor)
         h_sensor_line.addWidget(self.cb_sensor_monitor)
         l_sensor.addLayout(h_sensor_line)
 
@@ -284,21 +280,10 @@ class DeviceTab(QWidget):
         self.sensor_calib_spin.setValue(0.00)
         self.sensor_calib_spin.setSuffix(" N")
         self.sensor_calib_spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
-        self.sensor_calib_spin.setStyleSheet("""
-            QDoubleSpinBox {
-                min-height: 34px;
-                font-size: 10pt;
-                font-weight: bold;
-                border: 2px solid #b0b0b0;
-                border-radius: 10px;
-                background: white;
-                padding-right: 5px;
-            }
-            QDoubleSpinBox:focus { border-color: #0078D7; }
-        """)
+        self.sensor_calib_spin.setStyleSheet(styles.style_spinbox())
         h_calib.addWidget(self.sensor_calib_spin)
 
-        self.btn_calib = AnimatedButton("校准传感器", "#1E1E1E", "#505050")
+        self.btn_calib = AnimatedButton("校准传感器", styles.COLOR_DARK, styles.COLOR_GREY)
         self.btn_calib.clicked.connect(self.calibrate_sensor)
         h_calib.addWidget(self.btn_calib)
         l_sensor.addLayout(h_calib)
@@ -316,10 +301,10 @@ class DeviceTab(QWidget):
         v_all = QVBoxLayout(tab_all)
         self.grid_m = QGridLayout()
         h_m_page = QHBoxLayout()
-        self.btn_m_prev = AnimatedButton("◀ 上一页", "grey","#505050")
+        self.btn_m_prev = AnimatedButton("◀ 上一页", "grey", styles.COLOR_GREY)
         self.btn_m_prev.clicked.connect(lambda: self.change_page('m', -1))
         self.btn_m_prev.setProperty("class", "page-btn")
-        self.btn_m_next = AnimatedButton("下一页 ▶", "grey","#505050")
+        self.btn_m_next = AnimatedButton("下一页 ▶", "grey", styles.COLOR_GREY)
         self.btn_m_next.clicked.connect(lambda: self.change_page('m', 1))
         self.btn_m_next.setProperty("class", "page-btn")
         self.lbl_m_page = QLabel("电机 1/1 页")
@@ -330,10 +315,10 @@ class DeviceTab(QWidget):
         h_m_page.addWidget(self.btn_m_next)
         self.grid_s = QGridLayout()
         h_s_page = QHBoxLayout()
-        self.btn_s_prev = AnimatedButton("◀ 上一页", "grey","#505050")
+        self.btn_s_prev = AnimatedButton("◀ 上一页", "grey", styles.COLOR_GREY)
         self.btn_s_prev.clicked.connect(lambda: self.change_page('s', -1))
         self.btn_s_prev.setProperty("class", "page-btn")
-        self.btn_s_next = AnimatedButton("下一页 ▶", "grey","#505050")
+        self.btn_s_next = AnimatedButton("下一页 ▶", "grey", styles.COLOR_GREY)
         self.btn_s_next.clicked.connect(lambda: self.change_page('s', 1))
         self.btn_s_next.setProperty("class", "page-btn")
         self.lbl_s_page = QLabel("压力传感器 1/1 页")
@@ -398,16 +383,12 @@ class DeviceTab(QWidget):
         init_titles = [("位移 (mm)", "#b5956b"), ("速度 (mm/s)", "#b5956b"), ("加速度 (mm/s²)", "#b5956b")]
         for default_title, default_color in init_titles:
             card_frame = QFrame()
-            card_frame.setStyleSheet(
-                "QFrame { background: #fdfaf5; border: 1px solid #c4b49a; border-radius: 6px; }"
-            )
+            card_frame.setStyleSheet(styles.style_card_frame())
             card_layout = QHBoxLayout(card_frame)
             title_label = QLabel(default_title)
-            title_label.setStyleSheet("color: #5a4636; font-weight:bold; border:none; font-size:15pt;")
+            title_label.setStyleSheet(styles.style_title_label("15pt"))
             value_label = QLabel("0.00")
-            value_label.setStyleSheet(
-                f"color: {default_color}; font-size: 15pt; font-weight: bold; border: none;"
-            )
+            value_label.setStyleSheet(styles.style_value_label(default_color))
             value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             card_layout.addWidget(title_label)
             card_layout.addStretch()
@@ -415,6 +396,27 @@ class DeviceTab(QWidget):
             v_single.addWidget(card_frame)
             self.single_cards.append((title_label, value_label))
         self.tabs.addTab(tab_single, "🎯 定点监测(电机与压力传感器)")
+
+        # ---- 第4个tab：传感器阈值圆盘 ----
+        tab_disk = QWidget()
+        v_disk = QVBoxLayout(tab_disk)
+        h_threshold = QHBoxLayout()
+        h_threshold.addWidget(QLabel("阈值 (N):"))
+        self.spin_threshold = QDoubleSpinBox()
+        self.spin_threshold.setRange(0, 999.99)
+        self.spin_threshold.setDecimals(1)
+        self.spin_threshold.setValue(10.0)
+        self.spin_threshold.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.spin_threshold.setStyleSheet(styles.style_spinbox())
+        self.spin_threshold.valueChanged.connect(self._on_threshold_changed)
+        h_threshold.addWidget(self.spin_threshold)
+        h_threshold.addStretch()
+        v_disk.addLayout(h_threshold)
+
+        self.sensor_disk = SensorDiskWidget(num_sensors=max(self.num_s, 6))
+        v_disk.addWidget(self.sensor_disk)
+
+        self.tabs.addTab(tab_disk, "⭕ 传感器阈值总览")
 
         self.right_layout.addWidget(self.tabs)
         splitter.addWidget(left_widget)
@@ -430,42 +432,7 @@ class DeviceTab(QWidget):
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
-        # 统一的新样式滚动条
-        scroll_area.setStyleSheet("""
-            QScrollBar:vertical {
-                background: #fbf7f0;
-                width: 10px;
-                margin: 0;
-                border-radius: 5px;
-            }
-            QScrollBar::handle:vertical {
-                background: #c4b49a;
-                min-height: 20px;
-                border-radius: 5px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #b5956b;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            QScrollBar:horizontal {
-                background: #fbf7f0;
-                height: 10px;
-                border-radius: 5px;
-            }
-            QScrollBar::handle:horizontal {
-                background: #c4b49a;
-                min-width: 20px;
-                border-radius: 5px;
-            }
-            QScrollBar::handle:horizontal:hover {
-                background: #b5956b;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                width: 0px;
-            }
-        """)
+        scroll_area.setStyleSheet(styles.style_scroll_area())
         self.setLayout(QVBoxLayout())
         self.layout().addWidget(scroll_area)
 
@@ -505,16 +472,7 @@ class DeviceTab(QWidget):
     def create_motor_card(self, title, color):
         frame = QFrame()
         frame.setObjectName("motorCard")
-        frame.setStyleSheet("""
-            QFrame#motorCard { 
-                background: #fdfaf5; 
-                border: 1px solid #c4b49a; 
-                border-radius: 6px;
-            }
-            QFrame#motorCard:hover {
-                border: 1px solid #b5956b;
-            }
-        """)
+        frame.setStyleSheet(styles.style_card_frame())
         main_layout = QVBoxLayout(frame)
         main_layout.setContentsMargins(6, 6, 6, 6)
         main_layout.setSpacing(10)
@@ -522,7 +480,7 @@ class DeviceTab(QWidget):
         top_layout = QHBoxLayout(top_widget)
         top_layout.setContentsMargins(0, 0, 0, 0)
         title_label = QLabel(title)
-        title_label.setStyleSheet("color: #5a4636; font-weight: bold; font-size: 10pt; border: none;")
+        title_label.setStyleSheet(styles.style_title_label("10pt"))
         title_label.setAlignment(Qt.AlignCenter)
         top_layout.addWidget(title_label)
         top_layout.addStretch()
@@ -564,12 +522,12 @@ class DeviceTab(QWidget):
         main_layout.addWidget(block_pos)
         line1 = QFrame()
         line1.setFrameShape(QFrame.HLine)
-        line1.setStyleSheet("background-color: #d9cfbd; border: none; height: 1px;")
+        line1.setStyleSheet(styles.style_line())
         main_layout.addWidget(line1)
         main_layout.addWidget(block_vel)
         line2 = QFrame()
         line2.setFrameShape(QFrame.HLine)
-        line2.setStyleSheet("background-color: #d9cfbd; border: none; height: 1px;")
+        line2.setStyleSheet(styles.style_line())
         main_layout.addWidget(line2)
         main_layout.addWidget(block_acc)
         lbls = [cur_pos, tar_pos, cur_vel, tar_vel, cur_acc, tar_acc, state_ball]
@@ -578,16 +536,7 @@ class DeviceTab(QWidget):
     def create_sensor_card(self, title, color):
         frame = QFrame()
         frame.setObjectName("sensorCard")
-        frame.setStyleSheet("""
-            QFrame#sensorCard { 
-                background: #fdfaf5; 
-                border: 1px solid #c4b49a; 
-                border-radius: 6px;
-            }
-            QFrame#sensorCard:hover {
-                border: 1px solid #b5956b;
-            }
-        """)
+        frame.setStyleSheet(styles.style_card_frame())
         main_layout = QVBoxLayout(frame)
         main_layout.setContentsMargins(6, 6, 6, 6)
         main_layout.setSpacing(8)
@@ -595,7 +544,7 @@ class DeviceTab(QWidget):
         top_layout = QHBoxLayout(top_widget)
         top_layout.setContentsMargins(0, 0, 0, 0)
         title_label = QLabel(title)
-        title_label.setStyleSheet("color: #5a4636; font-weight: bold; font-size: 10pt; border: none;")
+        title_label.setStyleSheet(styles.style_title_label("10pt"))
         title_label.setAlignment(Qt.AlignLeft)
         top_layout.addWidget(title_label)
         main_layout.addWidget(top_widget)
@@ -623,12 +572,12 @@ class DeviceTab(QWidget):
         main_layout.addWidget(block_pitch)
         line1 = QFrame()
         line1.setFrameShape(QFrame.HLine)
-        line1.setStyleSheet("background-color: #d9cfbd; border: none; height: 1px;")
+        line1.setStyleSheet(styles.style_line())
         main_layout.addWidget(line1)
         main_layout.addWidget(block_roll)
         line2 = QFrame()
         line2.setFrameShape(QFrame.HLine)
-        line2.setStyleSheet("background-color: #d9cfbd; border: none; height: 1px;")
+        line2.setStyleSheet(styles.style_line())
         main_layout.addWidget(line2)
         main_layout.addWidget(block_yaw)
         lbls = [val_pitch, val_roll, val_yaw]
@@ -636,9 +585,7 @@ class DeviceTab(QWidget):
 
     def create_flat_card(self, title, val, color):
         frame = QFrame()
-        frame.setStyleSheet(
-            "QFrame { background: #fdfaf5; border: 1px solid #c4b49a; border-radius: 6px; }"
-        )
+        frame.setStyleSheet(styles.style_card_frame())
         layout = QHBoxLayout(frame)
         lbl_val = QLabel(val)
         lbl_val.setStyleSheet(f"color: {color}; font-size: 12pt; font-weight: bold; border: none;")
@@ -705,7 +652,15 @@ class DeviceTab(QWidget):
         self.cb_view_id.addItems([f"ID {i + 1}" for i in range(max_id)])
         self.refresh_pagination()
         self.update_single_monitor_labels() # 确保ID列表与当前数量同步
+        # 更新传感器圆盘
+        if hasattr(self, 'sensor_disk'):
+            self.sensor_disk.set_num_sensors(max(self.num_s, 6))
         self.update_ui()
+
+    def _on_threshold_changed(self, value):
+        """阈值 spinbox 变化时更新圆盘所有传感器阈值"""
+        if hasattr(self, 'sensor_disk'):
+            self.sensor_disk.set_global_threshold(value)
 
     def change_page(self, t, delta):
         if t == 'm':
@@ -733,8 +688,8 @@ class DeviceTab(QWidget):
         if checked:
             # 按钮被按下（开启状态）
             self.btn_toggle.setText("⏹ 关闭控制系统")
-            self.btn_toggle.set_normal_color("#D13438")  # 改为危险样式（红色）
-            self.btn_toggle.set_hover_color("#6B1418")
+            self.btn_toggle.set_normal_color(styles.COLOR_DANGER)
+            self.btn_toggle.set_hover_color(styles.COLOR_DANGER_DARK)
             # 刷新样式表，使属性生效
             self.btn_toggle.style().unpolish(self.btn_toggle)
             self.btn_toggle.style().polish(self.btn_toggle)
@@ -742,8 +697,8 @@ class DeviceTab(QWidget):
         else:
             # 按钮弹起（关闭状态）
             self.btn_toggle.setText("▶ 启动控制系统")
-            self.btn_toggle.set_normal_color("#107C10")  # 恢复成功样式（绿色）
-            self.btn_toggle.set_hover_color("#063A06")
+            self.btn_toggle.set_normal_color(styles.COLOR_SUCCESS)
+            self.btn_toggle.set_hover_color(styles.COLOR_SUCCESS_DARK)
             self.btn_toggle.style().unpolish(self.btn_toggle)
             self.btn_toggle.style().polish(self.btn_toggle)
             self.sys_close()    # 关闭系统
@@ -768,8 +723,8 @@ class DeviceTab(QWidget):
             # 保持 checkable=True，只改变 checked 状态
             self.btn_toggle.setChecked(False)   # ✅ 不是 setCheckable(False)
             self.btn_toggle.setText("▶ 启动控制系统")
-            self.btn_toggle.set_normal_color("#107C10")
-            self.btn_toggle.set_hover_color("#063A06")
+            self.btn_toggle.set_normal_color(styles.COLOR_SUCCESS)
+            self.btn_toggle.set_hover_color(styles.COLOR_SUCCESS_DARK)
             self.btn_toggle.style().unpolish(self.btn_toggle)
             self.btn_toggle.style().polish(self.btn_toggle)
             # 恢复信号（尽快恢复，避免长时间阻塞）
@@ -785,7 +740,7 @@ class DeviceTab(QWidget):
             self.btn_s2_right.setEnabled(True)
             self.btn_bend_all.setEnabled(True)
             self.btn_closed_bend.setText("循环弯曲")
-            self.btn_closed_bend.set_normal_color("#FF8C00")
+            self.btn_closed_bend.set_normal_color(styles.COLOR_WARNING)
         # 发送紧急停止命令
         self.send_cmd(0x02, "紧急停止", "LQTS紧急停止按钮", is_motor=True)
 
@@ -906,31 +861,21 @@ class DeviceTab(QWidget):
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
             return
 
+        calib_value = self.sensor_calib_spin.value()
+        # 校准值转为有符号短整型（×100 保留两位小数），大端序
+        calib_raw = int(calib_value * 100)
+        calib_raw = max(-32768, min(32767, calib_raw))
+
         try:
-            self.send_cmd(0x03, f"校准压力传感器{idx}", f"Sensor {idx} 校准", struct.pack('>B', idx), is_motor=False)
+            data = struct.pack('>Bh', idx, calib_raw)
+            self.send_cmd(
+                0x03,
+                f"校准压力传感器{idx}",
+                f"Sensor {idx} 校准值={calib_value:.2f} N",
+                data, is_motor=False
+            )
         except Exception as e:
             error_msg = f"发送压力传感器校准命令失败: {str(e)}"
-            QMessageBox.critical(self, "错误", error_msg)
-            self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
-
-    def read_sensor_data(self):
-        if self.num_s == 0:
-            error_msg = "当前没有可用的压力传感器，无法读取传感器"
-            QMessageBox.warning(self, "错误", error_msg)
-            self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
-            return
-
-        idx = self.cb_sensor_monitor.currentIndex() + 1
-        if idx > self.num_s:
-            error_msg = f"压力传感器 ID {idx} 无效，当前只有 {self.num_s} 个传感器"
-            QMessageBox.warning(self, "错误", error_msg)
-            self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
-            return
-
-        try:
-            self.send_cmd(0x01, f"读取压力传感器{idx}", f"请求压力{idx}数据", struct.pack('>B', idx), is_motor=False)
-        except Exception as e:
-            error_msg = f"发送读取压力传感器数据命令失败: {str(e)}"
             QMessageBox.critical(self, "错误", error_msg)
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
 
@@ -1046,7 +991,7 @@ class DeviceTab(QWidget):
             self.closed_loop_enabled = True
 
             self.btn_closed_bend.setText("⏹ 停止循环寿命检测")
-            self.btn_closed_bend.set_normal_color("#D13438")
+            self.btn_closed_bend.set_normal_color(styles.COLOR_DANGER)
             # 禁用电机控制相关控件，防止手动干扰
             self.spin_m_pos.spin.setEnabled(False)
             self.spin_m_vel.spin.setEnabled(False)
@@ -1058,7 +1003,7 @@ class DeviceTab(QWidget):
             self.closed_loop_enabled = False
             self.cycle_last_trigger = None
             self.btn_closed_bend.setText("循环寿命检测")
-            self.btn_closed_bend.set_normal_color("#FF8C00")
+            self.btn_closed_bend.set_normal_color(styles.COLOR_WARNING)
             # 恢复电机控制控件
             self.spin_m_pos.spin.setEnabled(True)
             self.spin_m_vel.spin.setEnabled(True)
@@ -1238,9 +1183,9 @@ class DeviceTab(QWidget):
             labels[5].setText(f"目标: {target_acc:.2f}")
             lbl_state = labels[6]
             if state_val == 0:
-                lbl_state.setStyleSheet("color: #D13438; font-size:10pt; border: none;")
+                lbl_state.setStyleSheet(styles.style_status_ball_off())
             else:
-                lbl_state.setStyleSheet("color: #107C10; font-size:10pt; border: none;")
+                lbl_state.setStyleSheet(styles.style_status_ball_on())
         for i in range(self.s_page * 3, min((self.s_page + 1) * 3, self.num_s)):
             self.cards_sensor[i][1][0].setText(f"{self.sensor_data[i][0]:.2f}")
             self.cards_sensor[i][1][1].setText(f"{self.sensor_data[i][1]:.2f}")
@@ -1266,16 +1211,14 @@ class DeviceTab(QWidget):
                 for _, value_label in self.single_cards:
                     value_label.setText("--")
 
-        if hasattr(self, 'cb_sensor_monitor'):
-            self.update_sensor_monitor(self.cb_sensor_monitor.currentIndex())
         if hasattr(self, 'motor_status_ball') and hasattr(self, 'motor_states'):
             idx = self.cb_motor_id.currentIndex()
             if idx >= 0 and idx < len(self.motor_states):
                 state_val = self.motor_states[idx]
                 if state_val == 0:
-                    self.motor_status_ball.setStyleSheet("color: #D13438; font-size: 8pt;")
+                    self.motor_status_ball.setStyleSheet(styles.style_status_ball_off())
                 else:
-                    self.motor_status_ball.setStyleSheet("color: #107C10; font-size: 8pt;")
+                    self.motor_status_ball.setStyleSheet(styles.style_status_ball_on())
         # 更新第一段角度卡片
         if hasattr(self, 'target_angle1_val'):
             self.target_angle1_val.setText(f"{self.target_angle1:.2f}")
@@ -1288,6 +1231,11 @@ class DeviceTab(QWidget):
         if hasattr(self, 'current_angle2_val'):
             self.current_angle2_val.setText(f"{self.current_angle2:.2f}")
 
+        # 更新传感器阈值圆盘
+        if hasattr(self, 'sensor_disk') and self.num_s > 0:
+            disk_values = [self.sensor_data[i][0] for i in range(self.num_s)]
+            self.sensor_disk.update_sensor_values(disk_values)
+
     def update_motor_status_ball(self, idx=None):
         if idx is None:
             idx = self.cb_motor_id.currentIndex()
@@ -1295,12 +1243,9 @@ class DeviceTab(QWidget):
             if idx >= 0 and idx < len(self.motor_states):
                 state_val = self.motor_states[idx]
                 if state_val == 0:
-                    self.motor_status_ball.setStyleSheet("color: #D13438; font-size: 8pt;")
+                    self.motor_status_ball.setStyleSheet(styles.style_status_ball_off())
                 else:
-                    self.motor_status_ball.setStyleSheet("color: #107C10; font-size: 8pt;")
-
-    def update_sensor_monitor(self, idx=None):
-        pass
+                    self.motor_status_ball.setStyleSheet(styles.style_status_ball_on())
 
     def record_history(self):
         if self.serial_error:
@@ -1408,20 +1353,7 @@ class DeviceTab(QWidget):
         spin.setSingleStep(step)
 
         spin.setButtonSymbols(QAbstractSpinBox.NoButtons)
-        spin.setStyleSheet("""
-            QDoubleSpinBox {
-                min-height: 34px;
-                font-size: 10pt;
-                font-weight: bold;
-                border: 2px solid #b0b0b0;
-                border-radius: 10px;
-                background: white;
-                padding-right: 5px;
-            }
-            QDoubleSpinBox:focus {
-                border-color: #0078D7;
-            }
-        """)
+        spin.setStyleSheet(styles.style_spinbox())
 
         btn_plus = QPushButton("+")
         btn_plus.setFixedSize(34, 34)

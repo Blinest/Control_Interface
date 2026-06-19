@@ -11,9 +11,17 @@ from PyQt5.QtGui import QTextCursor, QColor
 # 自定义类
 from Core.logger import default_log_manager as log_manager
 from Core.auth import GlobalHistory
+from . import styles
 # 工具类
 import os
 from datetime import datetime
+
+# 管理窗口专用蓝色常量（#0078D7 Windows 蓝）
+ADMIN_BLUE = "#0078D7"
+ADMIN_BLUE_HOVER = "#0056b3"
+ADMIN_BLUE_PRESSED = "#004a9e"
+COLOR_GREY_HOVER = "#888888"
+COLOR_GREY_PRESSED = "#555555"
 
 class LogManagerWindow(QDialog):
     def __init__(self, parent=None):
@@ -38,7 +46,7 @@ class LogManagerWindow(QDialog):
         layout = QVBoxLayout(self)
 
         title = QLabel("📋 系统日志与操作记录")
-        title.setStyleSheet("font-size: 28px; font-weight: bold; margin-bottom: 20px;")
+        title.setStyleSheet(f"font-size: 28px; font-weight: bold; margin-bottom: 20px; color: {styles.TEXT_PRIMARY};")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
@@ -64,86 +72,89 @@ class LogManagerWindow(QDialog):
 
         # 历史日志标题
         history_title = QLabel("📁 历史日志文件")
-        history_title.setStyleSheet("font-size: 20px; font-weight: bold; padding: 5px;")
+        history_title.setStyleSheet(f"font-size: 20px; font-weight: bold; padding: 5px; color: {styles.TEXT_PRIMARY};")
         left_layout.addWidget(history_title)
 
         # 刷新按钮
         btn_refresh_list = QPushButton("🔄 刷新列表")
-        btn_refresh_list.setStyleSheet("""
-            QPushButton {
-                background-color: #0078D7;
-                color: white;
+        btn_refresh_list.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {ADMIN_BLUE};
+                color: {styles.TEXT_LIGHT};
                 padding: 6px;
                 border-radius: 4px;
                 font-size: 20px;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-            }
+                border: none;
+            }}
+            QPushButton:hover {{
+                background-color: {ADMIN_BLUE_HOVER};
+            }}
         """)
         btn_refresh_list.clicked.connect(self._refresh_log_list)
         left_layout.addWidget(btn_refresh_list)
 
         # 日志文件列表
         self.log_list_widget = QListWidget()
-        self.log_list_widget.setStyleSheet("""
-            QListWidget {
-                background-color: #F5F5F5;
-                border: 2px solid #DDD;
+        self.log_list_widget.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {styles.BG_PRIMARY};
+                border: 2px solid {styles.BORDER_DEFAULT};
                 border-radius: 4px;
                 font-size: 20px;
-            }
-            QListWidget::item {
+            }}
+            QListWidget::item {{
                 padding: 8px;
-                border-bottom: 1px solid #DDD;
-            }
-            QListWidget::item:selected {
-                background-color: #0078D7;
-                color: white;
-            }
-            QListWidget::item:hover {
-                background-color: #E0E0E0;
-            }
+                border-bottom: 1px solid {styles.BORDER_DEFAULT};
+            }}
+            QListWidget::item:selected {{
+                background-color: {ADMIN_BLUE};
+                color: {styles.TEXT_LIGHT};
+            }}
+            QListWidget::item:hover {{
+                background-color: {styles.BG_HOVER};
+            }}
         """)
         self.log_list_widget.itemClicked.connect(self._on_log_file_selected)
         left_layout.addWidget(self.log_list_widget)
 
         # 文件信息
         self.lbl_file_info = QLabel("")
-        self.lbl_file_info.setStyleSheet("font-size: 20px; color: #666; padding: 5px;")
+        self.lbl_file_info.setStyleSheet(f"font-size: 20px; color: {styles.COLOR_GREY}; padding: 5px;")
         self.lbl_file_info.setWordWrap(True)
         left_layout.addWidget(self.lbl_file_info)
 
         # 删除历史日志按钮
         btn_delete_log = QPushButton("🗑️ 删除选中日志")
-        btn_delete_log.setStyleSheet("""
-            QPushButton {
-                background-color: #D13438;
-                color: white;
+        btn_delete_log.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {styles.COLOR_DANGER};
+                color: {styles.TEXT_LIGHT};
                 padding: 6px;
                 border-radius: 4px;
                 font-size: 20px;
-            }
-            QPushButton:hover {
-                background-color: #A80000;
-            }
+                border: none;
+            }}
+            QPushButton:hover {{
+                background-color: {styles.COLOR_DANGER_DARK};
+            }}
         """)
         btn_delete_log.clicked.connect(self._delete_selected_log)
         left_layout.addWidget(btn_delete_log)
 
         # 打开日志文件夹按钮
         btn_open_folder = QPushButton("📂 打开日志文件夹")
-        btn_open_folder.setStyleSheet("""
-            QPushButton {
-                background-color: #666;
-                color: white;
+        btn_open_folder.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {styles.COLOR_GREY};
+                color: {styles.TEXT_LIGHT};
                 padding: 6px;
                 border-radius: 4px;
                 font-size: 20px;
-            }
-            QPushButton:hover {
-                background-color: #888;
-            }
+                border: none;
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_GREY_HOVER};
+            }}
         """)
         btn_open_folder.clicked.connect(self._open_log_folder)
         left_layout.addWidget(btn_open_folder)
@@ -159,42 +170,15 @@ class LogManagerWindow(QDialog):
         info_layout = QHBoxLayout()
         info_layout.addWidget(QLabel("当前查看:"))
         self.lbl_current_file = QLabel("今日日志")
-        self.lbl_current_file.setStyleSheet("color: #0078D7; font-weight: bold;")
+        self.lbl_current_file.setStyleSheet(f"color: {ADMIN_BLUE}; font-weight: bold;")
         info_layout.addWidget(self.lbl_current_file)
         info_layout.addStretch()
 
         # 文件大小信息
         self.lbl_file_size = QLabel("")
-        self.lbl_file_size.setStyleSheet("color: #666;")
+        self.lbl_file_size.setStyleSheet(f"color: {styles.COLOR_GREY};")
         info_layout.addWidget(self.lbl_file_size)
         right_layout.addLayout(info_layout)
-
-        # 级别筛选和搜索控件
-        filter_layout = QHBoxLayout()
-        filter_layout.addWidget(QLabel("日志级别:"))
-        self.cmb_log_level = QComboBox()
-        self.cmb_log_level.addItems(["全部", "INFO", "WARNING", "ERROR", "DEBUG"])
-        self.cmb_log_level.currentIndexChanged.connect(self._refresh_log_display)
-        filter_layout.addWidget(self.cmb_log_level)
-        filter_layout.addSpacing(20)
-
-        filter_layout.addWidget(QLabel("🔍 搜索:"))
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("输入关键字搜索...")
-        self.search_input.setFixedWidth(250)
-        self.search_input.setStyleSheet("""
-            QLineEdit {
-                padding: 6px;
-                font-size: 20px;
-                border: 2px solid #ccc;
-                border-radius: 4px;
-            }
-            QLineEdit:focus {
-                border-color: #0078D7;
-            }
-        """)
-        self.search_input.returnPressed.connect(self._search_next)
-        filter_layout.addWidget(self.search_input)
 
         # 搜索控件
         filter_layout = QHBoxLayout()
@@ -210,17 +194,17 @@ class LogManagerWindow(QDialog):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("输入关键字搜索...")
         self.search_input.setFixedWidth(200)
-        self.search_input.setStyleSheet("""
-            QLineEdit {
+        self.search_input.setStyleSheet(f"""
+            QLineEdit {{
                 padding: 4px 8px;
                 font-size: 20px;
-                border: 2px solid #ccc;
+                border: 2px solid {styles.BORDER_DEFAULT};
                 border-radius: 4px;
-                background-color: white;
-            }
-            QLineEdit:focus {
-                border-color: #0078D7;
-            }
+                background-color: {styles.BG_CARD};
+            }}
+            QLineEdit:focus {{
+                border-color: {ADMIN_BLUE};
+            }}
         """)
         self.search_input.returnPressed.connect(self._search_next)
         filter_layout.addWidget(self.search_input)
@@ -228,21 +212,21 @@ class LogManagerWindow(QDialog):
         # 搜索按钮
         btn_search = QPushButton("搜索")
         btn_search.setFixedWidth(60)
-        btn_search.setStyleSheet("""
-            QPushButton {
-                background-color: #0078D7;
-                color: white;
+        btn_search.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {ADMIN_BLUE};
+                color: {styles.TEXT_LIGHT};
                 padding: 4px 8px;
                 border-radius: 4px;
                 font-size: 20px;
                 border: none;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-            }
-            QPushButton:pressed {
-                background-color: #004a9e;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {ADMIN_BLUE_HOVER};
+            }}
+            QPushButton:pressed {{
+                background-color: {ADMIN_BLUE_PRESSED};
+            }}
         """)
         btn_search.clicked.connect(self._search_log)
         filter_layout.addWidget(btn_search)
@@ -252,24 +236,24 @@ class LogManagerWindow(QDialog):
         self.btn_prev.setFixedWidth(40)
         self.btn_prev.setEnabled(False)
         self.btn_prev.setToolTip("上一个匹配项")
-        self.btn_prev.setStyleSheet("""
-            QPushButton {
-                background-color: #666;
-                color: white;
+        self.btn_prev.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {styles.COLOR_GREY};
+                color: {styles.TEXT_LIGHT};
                 padding: 4px 6px;
                 border-radius: 4px;
                 font-size: 20px;
                 border: none;
-            }
-            QPushButton:hover {
-                background-color: #888;
-            }
-            QPushButton:pressed {
-                background-color: #555;
-            }
-            QPushButton:disabled {
-                background-color: #ccc;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_GREY_HOVER};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_GREY_PRESSED};
+            }}
+            QPushButton:disabled {{
+                background-color: {styles.BORDER_DEFAULT};
+            }}
         """)
         self.btn_prev.clicked.connect(self._search_prev)
         filter_layout.addWidget(self.btn_prev)
@@ -279,36 +263,36 @@ class LogManagerWindow(QDialog):
         self.btn_next.setFixedWidth(40)
         self.btn_next.setEnabled(False)
         self.btn_next.setToolTip("下一个匹配项")
-        self.btn_next.setStyleSheet("""
-            QPushButton {
-                background-color: #666;
-                color: white;
+        self.btn_next.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {styles.COLOR_GREY};
+                color: {styles.TEXT_LIGHT};
                 padding: 4px 6px;
                 border-radius: 4px;
                 font-size: 20px;
                 border: none;
-            }
-            QPushButton:hover {
-                background-color: #888;
-            }
-            QPushButton:pressed {
-                background-color: #555;
-            }
-            QPushButton:disabled {
-                background-color: #ccc;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_GREY_HOVER};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_GREY_PRESSED};
+            }}
+            QPushButton:disabled {{
+                background-color: {styles.BORDER_DEFAULT};
+            }}
         """)
         self.btn_next.clicked.connect(self._search_next)
         filter_layout.addWidget(self.btn_next)
 
         # 搜索结果标签
         self.lbl_search_result = QLabel("")
-        self.lbl_search_result.setStyleSheet("""
-            QLabel {
-                color: #666; 
+        self.lbl_search_result.setStyleSheet(f"""
+            QLabel {{
+                color: {styles.COLOR_GREY};
                 font-size: 20px;
                 padding: 0 8px;
-            }
+            }}
         """)
         filter_layout.addWidget(self.lbl_search_result)
 
@@ -318,14 +302,14 @@ class LogManagerWindow(QDialog):
         # 日志内容显示区域
         self.text_log_content = QTextEdit()
         self.text_log_content.setReadOnly(True)
-        self.text_log_content.setStyleSheet("""
-            QTextEdit {
-                background-color: #F5F5F5;
-                border: 3px solid #DDD;
+        self.text_log_content.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {styles.BG_PRIMARY};
+                border: 3px solid {styles.BORDER_DEFAULT};
                 border-radius: 4px;
                 font-family: 'Consolas', 'Monaco', monospace;
                 font-size: 20px;
-            }
+            }}
         """)
         right_layout.addWidget(self.text_log_content)
 
@@ -337,17 +321,17 @@ class LogManagerWindow(QDialog):
         btn_layout.addWidget(btn_refresh)
 
         btn_save = QPushButton("💾 另存为")
-        btn_save.setStyleSheet("background-color: #107C10; color: white;")
+        btn_save.setStyleSheet(f"background-color: {styles.COLOR_SUCCESS}; color: {styles.TEXT_LIGHT};")
         btn_save.clicked.connect(self._save_log)
         btn_layout.addWidget(btn_save)
 
         btn_clear = QPushButton("🗑️ 清空当前日志")
-        btn_clear.setStyleSheet("background-color: #D13438; color: white;")
+        btn_clear.setStyleSheet(f"background-color: {styles.COLOR_DANGER}; color: {styles.TEXT_LIGHT};")
         btn_clear.clicked.connect(self._clear_log)
         btn_layout.addWidget(btn_clear)
 
         btn_export = QPushButton("📤 导出")
-        btn_export.setStyleSheet("background-color: #0078D7; color: white;")
+        btn_export.setStyleSheet(f"background-color: {ADMIN_BLUE}; color: {styles.TEXT_LIGHT};")
         btn_export.clicked.connect(self._export_log)
         btn_layout.addWidget(btn_export)
 
@@ -369,39 +353,39 @@ class LogManagerWindow(QDialog):
         self.history_search_input = QLineEdit()
         self.history_search_input.setPlaceholderText("输入关键字搜索...")
         self.history_search_input.setFixedWidth(300)
-        self.history_search_input.setStyleSheet("""
-            QLineEdit {
+        self.history_search_input.setStyleSheet(f"""
+            QLineEdit {{
                 padding: 6px;
                 font-size: 20px;
-                border: 2px solid #ccc;
+                border: 2px solid {styles.BORDER_DEFAULT};
                 border-radius: 4px;
-            }
-            QLineEdit:focus {
-                border-color: #0078D7;
-            }
+            }}
+            QLineEdit:focus {{
+                border-color: {ADMIN_BLUE};
+            }}
         """)
         self.history_search_input.textChanged.connect(self._filter_history)
         search_layout.addWidget(self.history_search_input)
 
         btn_clear_search = QPushButton("清除")
-        btn_clear_search.setStyleSheet("""
-            QPushButton {
-                background-color: #666;
-                color: white;
+        btn_clear_search.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {styles.COLOR_GREY};
+                color: {styles.TEXT_LIGHT};
                 padding: 4px 6px;
                 border-radius: 4px;
                 font-size: 24px;
                 border: none;
-            }
-            QPushButton:hover {
-                background-color: #888;
-            }
-            QPushButton:pressed {
-                background-color: #555;
-            }
-            QPushButton:disabled {
-                background-color: #ccc;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {COLOR_GREY_HOVER};
+            }}
+            QPushButton:pressed {{
+                background-color: {COLOR_GREY_PRESSED};
+            }}
+            QPushButton:disabled {{
+                background-color: {styles.BORDER_DEFAULT};
+            }}
         """)
         btn_clear_search.clicked.connect(self._clear_history_search)
 
@@ -415,19 +399,19 @@ class LogManagerWindow(QDialog):
         self.table_history.setHorizontalHeaderLabels(["时间", "串口", "操作动作", "详细数据", "数据包(Hex)"])
         self.table_history.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
         self.table_history.setAlternatingRowColors(True)
-        self.table_history.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                alternate-background-color: #F5F5F5;
-                gridline-color: #DDD;
-            }
-            QHeaderView::section {
-                background-color: #0078D7;
-                color: white;
+        self.table_history.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {styles.BG_CARD};
+                alternate-background-color: {styles.BG_PRIMARY};
+                gridline-color: {styles.BORDER_DEFAULT};
+            }}
+            QHeaderView::section {{
+                background-color: {ADMIN_BLUE};
+                color: {styles.TEXT_LIGHT};
                 padding: 8px;
                 font-weight: bold;
                 border: none;
-            }
+            }}
         """)
         layout.addWidget(self.table_history)
 
@@ -438,12 +422,12 @@ class LogManagerWindow(QDialog):
         btn_layout.addWidget(btn_refresh)
 
         btn_export = QPushButton("📤 导出记录")
-        btn_export.setStyleSheet("background-color: #0078D7; color: white;")
+        btn_export.setStyleSheet(f"background-color: {ADMIN_BLUE}; color: {styles.TEXT_LIGHT};")
         btn_export.clicked.connect(self._export_history)
         btn_layout.addWidget(btn_export)
 
         btn_clear = QPushButton("🗑️ 清空记录")
-        btn_clear.setStyleSheet("background-color: #D13438; color: white;")
+        btn_clear.setStyleSheet(f"background-color: {styles.COLOR_DANGER}; color: {styles.TEXT_LIGHT};")
         btn_clear.clicked.connect(self._clear_history)
         btn_layout.addWidget(btn_clear)
 

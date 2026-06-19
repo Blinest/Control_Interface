@@ -494,7 +494,6 @@ class GraphController(QObject):
 
     def _find_nearest_index(self, x_data, target_x):
         """二分查找最接近目标值的索引"""
-        import bisect
         if x_data is None or len(x_data) == 0:
             return None
         idx = bisect.bisect_left(x_data, target_x)

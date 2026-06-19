@@ -98,12 +98,6 @@ class DataFilter:
         self._prev_sensor[idx] = [fpitch, froll, fyaw]
         return fpitch, froll, fyaw
 
-    def reset(self):
-        self._motor_buffers.clear()
-        self._sensor_buffers.clear()
-        self._prev_motor.clear()
-        self._prev_sensor.clear()
-
 # ===================== 协议解析器 =====================
 class ProtocolParser:
     @staticmethod

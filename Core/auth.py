@@ -10,9 +10,6 @@ import hashlib
 # ==========================================
 # 1. 全局数据与日志中心
 # ==========================================
-class GlobalAuth:
-    USER = "TH"
-    PASS = "th"
 
 class GlobalHistory:
     """全局操作记录管理器"""
@@ -238,7 +235,6 @@ class SimpleAuthBackend:
             return False, "用户名已存在"
 
         # 创建新用户
-        from datetime import datetime
         users[username] = {
             "password_hash": self._hash_password(password),
             "role": "user",
@@ -280,18 +276,6 @@ class SimpleAuthBackend:
             return True, "密码修改成功！"
         else:
             return False, "密码修改失败，请稍后重试"
-
-    def user_exists(self, username: str) -> bool:
-        """检查用户是否存在"""
-        users = self._load_users()
-        return username in users
-
-    def get_user_role(self, username: str) -> str:
-        """获取用户角色"""
-        users = self._load_users()
-        if username in users:
-            return users[username].get("role", "user")
-        return "user"
 
 class AuthService:
     """认证服务（单例模式）"""
