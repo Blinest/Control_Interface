@@ -21,6 +21,7 @@ from Core.logger import default_log_manager as log_manager
 from Core.GraphController import GraphController
 
 # 工具类
+import sys
 import os
 from datetime import datetime
 import time
@@ -45,7 +46,11 @@ class MainWindow(QMainWindow):
         self.auto_connect_timer = QTimer()
         self.auto_connect_timer.timeout.connect(self.auto_check_target_port)
         self.auto_connect_timer.start(200)
-        self.target_port = "/dev/ttyCH341USB0"
+        # 根据操作系统设置默认目标端口
+        if sys.platform == 'win32':
+            self.target_port = "COM3"  # Windows 默认 COM 口，可按实际修改
+        else:
+            self.target_port = "/dev/ttyCH341USB0"
 
         # 创建状态栏
         self.statusBar().showMessage("就绪")
@@ -66,7 +71,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addWidget(QLabel("手动输入: "))
         self.manual_port_edit = QLineEdit()
-        self.manual_port_edit.setPlaceholderText("/dev/ttyCH341USB0")
+        self.manual_port_edit.setPlaceholderText("COM3" if sys.platform == 'win32' else "/dev/ttyCH341USB0")
         self.manual_port_edit.setFixedWidth(150)
         self.btn_manual_add = AnimatedButton("➕ 手动添加", "grey", styles.COLOR_GREY)
         self.btn_manual_add.setProperty("class", "page-btn")
@@ -309,10 +314,17 @@ class MainWindow(QMainWindow):
             valid_ports.append(self.target_port)
         for port in all_ports:
             device = port.device
-            if device.startswith('/dev/ttyS') or device.startswith('/dev/ttyAMA'):
+            if device == self.target_port:
                 continue
-            if "USB" in device.upper() or "ACM" in device.upper() or "CH341" in device.upper():
-                if device != self.target_port:
+            if sys.platform == 'win32':
+                # Windows: 接受所有 COM 口（包括 COM1, COM3 等）
+                if device.startswith('COM'):
+                    valid_ports.append(device)
+            else:
+                # Linux: 过滤掉系统内置串口
+                if device.startswith('/dev/ttyS') or device.startswith('/dev/ttyAMA'):
+                    continue
+                if "USB" in device.upper() or "ACM" in device.upper() or "CH341" in device.upper():
                     valid_ports.append(device)
         if not valid_ports:
             if self.combo_ports.currentText() != "无可用串口":
@@ -405,10 +417,17 @@ class MainWindow(QMainWindow):
             valid_ports.append(self.target_port)
         for port in all_ports:
             device = port.device
-            if device.startswith("/dev/ttyS") or device.startswith("/dev/ttyAMA"):
+            if device == self.target_port:
                 continue
-            if ("USB" in device.upper() or "ACM" in device.upper() or "CH341" in device.upper()):
-                if device != self.target_port:
+            if sys.platform == 'win32':
+                # Windows: 接受所有 COM 口
+                if device.startswith('COM'):
+                    valid_ports.append(device)
+            else:
+                # Linux: 过滤掉系统内置串口
+                if device.startswith("/dev/ttyS") or device.startswith("/dev/ttyAMA"):
+                    continue
+                if ("USB" in device.upper() or "ACM" in device.upper() or "CH341" in device.upper()):
                     valid_ports.append(device)
         if valid_ports:
             seen = set()
