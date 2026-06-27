@@ -52,6 +52,7 @@ class DeviceTab(QWidget):
         self.is_started = False            # 控制系统是否使能
         self.closed_loop_enabled = False   # 闭环弯曲是否启用
         self.closed_loop_target_angle = 0.0
+        self.active_control_enabled = False   # 主动控制是否启用
 
         # ========== 电机与传感器数量及数据 ==========
         self.num_m = 0
@@ -159,6 +160,10 @@ class DeviceTab(QWidget):
         self.btn_home = AnimatedButton("⌂ 一键归中", styles.COLOR_DARK, styles.COLOR_GREY)
         self.btn_home.clicked.connect(self.send_home_command)
         l_quick.addWidget(self.btn_home)
+
+        self.btn_active_control = AnimatedButton("⚡ 主动控制", styles.COLOR_INFO, styles.COLOR_GREY)
+        self.btn_active_control.clicked.connect(self.toggle_active_control)
+        l_quick.addWidget(self.btn_active_control)
 
         l_section1 = QHBoxLayout()
         self.spin_bend1 = self._create_custom_spinbox(0, 90, 0, prefix="第一段角度: ", suffix='°')
@@ -706,6 +711,7 @@ class DeviceTab(QWidget):
     def sys_close(self):
         self.is_started = False
         self.closed_loop_enabled = False   # 停止闭环
+        self.active_control_enabled = False   # 停止主动控制
         self.send_cmd(0x00, "失能", "关闭控制系统", is_motor=True)
 
     def sys_start(self):
@@ -732,6 +738,10 @@ class DeviceTab(QWidget):
 
         self.is_started = False
         self.closed_loop_enabled = False   # 停止闭环
+        self.active_control_enabled = False   # 停止主动控制
+        if hasattr(self, 'btn_active_control'):
+            self.btn_active_control.setText("⚡ 主动控制")
+            self.btn_active_control.set_normal_color(styles.COLOR_INFO)
         if hasattr(self, 'btn_closed_bend') and self.btn_closed_bend.text() == "⏹ 停止循环弯曲":
             self.spin_bend2.spin.setEnabled(True)
             self.btn_s2_up.setEnabled(True)
@@ -761,7 +771,8 @@ class DeviceTab(QWidget):
         msg_box.exec_()
         # 禁用所有操作按钮
         buttons = [
-            self.btn_toggle, self.btn_stop, self.btn_home, self.btn_closed_bend,self.btn_bend_all,
+            self.btn_toggle, self.btn_stop, self.btn_home, self.btn_active_control,
+            self.btn_closed_bend,self.btn_bend_all,
             self.btn_s1_up, self.btn_s1_down, self.btn_s1_left, self.btn_s1_right,
             self.btn_s2_up, self.btn_s2_down, self.btn_s2_left, self.btn_s2_right,
             self.btn_send_m, self.btn_m_prev, self.btn_m_next,
@@ -917,6 +928,23 @@ class DeviceTab(QWidget):
             QMessageBox.critical(self, "错误", error_msg)
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
 
+    def toggle_active_control(self):
+        debug_mode = self.debug_check() if self.debug_check else False
+        if not self.is_started and not debug_mode:
+            QMessageBox.warning(self, "错误", "请先点击启动控制系统")
+            return
+
+        if not self.active_control_enabled:
+            self.active_control_enabled = True
+            self.btn_active_control.setText("⏹ 停止主动控制")
+            self.btn_active_control.set_normal_color(styles.COLOR_DANGER)
+            self.logger("⚡ 启动主动控制，持续发送 AA 06 02 指令", port=self.port_name)
+        else:
+            self.active_control_enabled = False
+            self.btn_active_control.setText("⚡ 主动控制")
+            self.btn_active_control.set_normal_color(styles.COLOR_INFO)
+            self.logger("⏹ 停止主动控制", port=self.port_name)
+
     # ========== 臂体控制 ==========
 
     def send_bend_combined(self, angle1=None, angle2=None, dir1=None, dir2=None, log_enabled=True):
@@ -1012,6 +1040,13 @@ class DeviceTab(QWidget):
             self.logger("⏹ 停止循环寿命检测", port=self.port_name)
 
     def closed_loop_control(self):
+        # 主动控制：持续发送固定帧 AA 06 02 checksum
+        if self.active_control_enabled:
+            frame = bytes([0xAA, 0x06, 0x02])
+            frame += bytes([sum(frame) & 0xFF])
+            self.worker.send_data(frame)
+            return
+
         if not self.closed_loop_enabled:
             return
         debug_mode = self.debug_check() if self.debug_check else False
