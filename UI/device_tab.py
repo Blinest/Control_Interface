@@ -1040,11 +1040,12 @@ class DeviceTab(QWidget):
             self.logger("⏹ 停止循环寿命检测", port=self.port_name)
 
     def closed_loop_control(self):
-        # 主动控制：持续发送固定帧 AA 06 02 checksum
+        # 主动控制：持续发送固定帧 AA 06 02 02 00 checksum
         if self.active_control_enabled:
-            frame = bytes([0xAA, 0x06, 0x02])
+            frame = bytes([0xAA, 0x06, 0x02, 0x02, 0x00])
             frame += bytes([sum(frame) & 0xFF])
             self.worker.send_data(frame)
+            self.logger("⚡ 主动控制 -> 持续发送 AA 06 02 02 00", raw_data=frame, port=self.port_name)
             return
 
         if not self.closed_loop_enabled:

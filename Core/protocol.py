@@ -102,8 +102,8 @@ class DataFilter:
 class ProtocolParser:
     @staticmethod
     def parse_frame(frame: bytes, apply_filter: bool = False, filter_obj: DataFilter = None) -> Optional[DeviceStatus]:
-        # 最小长度：头2 + 字节数1 + 电机数1 + 传感器数1 + 至少1个电机(7) + 弯曲2+2 + 状态1 + 数据长度1 + 校验1 = 19
-        if len(frame) < 19 or frame[0] != 0xBB or frame[1] != 0x02:
+        # 最小长度：头2 + 字节数1 + 电机数1 + 传感器数1 + 至少1个电机(7) + 至少1个传感器(12) + 弯曲2+2 + 状态1 + 数据长度1 + 校验1 = 25
+        if len(frame) < 25 or frame[0] != 0xBB or frame[1] != 0x02:
             return None
 
         total_len = frame[2]          # 字节数（从电机数到系统状态）
@@ -115,9 +115,11 @@ class ProtocolParser:
         num_s = frame[4]
 
         # 计算从电机数到系统状态结束的字节数（不包含数据长度和校验和）
+        # 电机数据: pos(2)+vel(2)+acc(2)+status(1)=7字节/电机
+        # 传感器数据: pitch(4)+roll(4)+yaw(4)=12字节/传感器（32位）
         expected_data_len = (1 + 1                     # 电机数+传感器数
                              + num_m * 7
-                             + num_s * 6
+                             + num_s * 12
                              + 2 + 2 + 1)              # 弯曲1+弯曲2+系统状态
         if total_len != expected_data_len:
             return None
@@ -135,13 +137,13 @@ class ProtocolParser:
             offset += 1
             motors.append(MotorData(pos_raw/100.0, vel_raw/100.0, acc_raw/100.0, status))
 
-        # 解析传感器数据
+        # 解析传感器数据（32位）
         sensors = []
         for _ in range(num_s):
-            if offset + 6 > len(frame):
+            if offset + 12 > len(frame):
                 break
-            pitch_raw, roll_raw, yaw_raw = struct.unpack_from('>hhh', frame, offset)
-            offset += 6
+            pitch_raw, roll_raw, yaw_raw = struct.unpack_from('>iii', frame, offset)
+            offset += 12
             sensors.append(SensorData(pitch_raw/100.0, roll_raw/100.0, yaw_raw/100.0))
 
         # 弯曲角度1 & 2

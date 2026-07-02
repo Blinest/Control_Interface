@@ -306,6 +306,21 @@ class MainWindow(QMainWindow):
         dev_tab.on_debug_changed(True)
         self.log("Debug 模式：已创建虚拟设备", level="INFO")
 
+    # 虚拟/蓝牙端口黑名单关键词（Windows description 或 hwid 中常见）
+    _PORT_BLACKLIST_KEYWORDS = [
+        'BLUETOOTH', 'BTHENUM', 'MODEM', 'IRDA', 'VIRTUAL', 'VCOM',
+        'SERIAL MOUSE', 'FAX', 'RAS', 'VPN',
+    ]
+
+    def _is_real_device(self, port_info):
+        """判断一个串口是否为真实硬件设备，过滤掉蓝牙/虚拟/调制解调器等"""
+        desc = (port_info.description or '').upper()
+        hwid = (port_info.hwid or '').upper()
+        for kw in self._PORT_BLACKLIST_KEYWORDS:
+            if kw in desc or kw in hwid:
+                return False
+        return True
+
     def auto_check_target_port(self):
         all_ports = serial.tools.list_ports.comports()
         existing_ports = [port.device for port in all_ports]
@@ -317,8 +332,8 @@ class MainWindow(QMainWindow):
             if device == self.target_port:
                 continue
             if sys.platform == 'win32':
-                # Windows: 接受所有 COM 口（包括 COM1, COM3 等）
-                if device.startswith('COM'):
+                # Windows: 只接受通过真实性检测的 COM 口
+                if device.startswith('COM') and self._is_real_device(port):
                     valid_ports.append(device)
             else:
                 # Linux: 过滤掉系统内置串口
@@ -420,8 +435,8 @@ class MainWindow(QMainWindow):
             if device == self.target_port:
                 continue
             if sys.platform == 'win32':
-                # Windows: 接受所有 COM 口
-                if device.startswith('COM'):
+                # Windows: 只接受通过真实性检测的 COM 口
+                if device.startswith('COM') and self._is_real_device(port):
                     valid_ports.append(device)
             else:
                 # Linux: 过滤掉系统内置串口
