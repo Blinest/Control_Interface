@@ -1179,7 +1179,7 @@ class DeviceTab(QWidget):
                 # 更新数据
                 self.motor_data = [[m.pos, m.vel, m.acc] for m in status.motors]
                 self.motor_states = [m.status for m in status.motors]
-                self.sensor_data = [[s.pitch, s.roll, s.yaw] for s in status.sensors]
+                self.sensor_data = [[s.x, s.y, s.z] for s in status.sensors]
                 self.current_angle1 = status.bend_angle1
                 self.current_angle2 = status.bend_angle2
 

@@ -13,11 +13,11 @@ class MotorData:
         self.status = status  # 0:停止, 1:运行
 
 class SensorData:
-    __slots__ = ('pitch', 'roll', 'yaw')
-    def __init__(self, pitch: float, roll: float, yaw: float):
-        self.pitch = pitch  # deg
-        self.roll = roll    # deg
-        self.yaw = yaw      # deg
+    __slots__ = ('x', 'y', 'z')
+    def __init__(self, x: float, y: float, z: float):
+        self.x = x
+        self.y = y
+        self.z = z
 
 class DeviceStatus:
     __slots__ = ('num_motors', 'num_sensors', 'motors', 'sensors',
@@ -79,24 +79,24 @@ class DataFilter:
         self._prev_motor[idx] = [fpos, fvel, facc]
         return fpos, fvel, facc
 
-    def apply_sensor(self, idx: int, pitch: float, roll: float, yaw: float) -> Tuple[float, float, float]:
+    def apply_sensor(self, idx: int, sx: float, sy: float, sz: float) -> Tuple[float, float, float]:
         while len(self._sensor_buffers) <= idx:
             self._sensor_buffers.append([deque(maxlen=self.window_size) for _ in range(3)])
             self._prev_sensor.append([0.0, 0.0, 0.0])
         buffers = self._sensor_buffers[idx]
         prev = self._prev_sensor[idx]
 
-        fpitch = self._median(buffers[0], pitch)
-        froll  = self._median(buffers[1], roll)
-        fyaw   = self._median(buffers[2], yaw)
+        fx = self._median(buffers[0], sx)
+        fy = self._median(buffers[1], sy)
+        fz = self._median(buffers[2], sz)
 
         max_angle = self.max_change['angle']
-        fpitch = self._limit(prev[0], fpitch, max_angle)
-        froll  = self._limit(prev[1], froll,  max_angle)
-        fyaw   = self._limit(prev[2], fyaw,   max_angle)
+        fx = self._limit(prev[0], fx, max_angle)
+        fy = self._limit(prev[1], fy, max_angle)
+        fz = self._limit(prev[2], fz, max_angle)
 
-        self._prev_sensor[idx] = [fpitch, froll, fyaw]
-        return fpitch, froll, fyaw
+        self._prev_sensor[idx] = [fx, fy, fz]
+        return fx, fy, fz
 
 # ===================== 协议解析器 =====================
 class ProtocolParser:
@@ -142,9 +142,9 @@ class ProtocolParser:
         for _ in range(num_s):
             if offset + 12 > len(frame):
                 break
-            pitch_raw, roll_raw, yaw_raw = struct.unpack_from('>iii', frame, offset)
+            rx, ry, rz = struct.unpack_from('>iii', frame, offset)
             offset += 12
-            sensors.append(SensorData(pitch_raw/100.0, roll_raw/100.0, yaw_raw/100.0))
+            sensors.append(SensorData(float(rx), float(ry), float(rz)))
 
         # 弯曲角度1 & 2
         if offset + 4 > len(frame):
@@ -176,8 +176,8 @@ class ProtocolParser:
 
             filtered_sensors = []
             for i, s in enumerate(sensors):
-                fp, fr, fy = filter_obj.apply_sensor(i, s.pitch, s.roll, s.yaw)
-                filtered_sensors.append(SensorData(fp, fr, fy))
+                fx, fy, fz = filter_obj.apply_sensor(i, s.x, s.y, s.z)
+                filtered_sensors.append(SensorData(fx, fy, fz))
             sensors = filtered_sensors
 
         return DeviceStatus(
