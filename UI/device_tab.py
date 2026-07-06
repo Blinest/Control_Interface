@@ -1269,7 +1269,7 @@ class DeviceTab(QWidget):
 
         # 更新传感器阈值圆盘
         if hasattr(self, 'sensor_disk') and self.num_s > 0:
-            disk_values = [self.sensor_data[i][0] for i in range(self.num_s)]
+            disk_values = [self.sensor_data[i][2] for i in range(self.num_s)]
             self.sensor_disk.update_sensor_values(disk_values)
 
     def update_motor_status_ball(self, idx=None):
