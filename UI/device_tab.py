@@ -163,7 +163,13 @@ class DeviceTab(QWidget):
 
         self.btn_active_control = AnimatedButton("⚡ 主动控制", styles.COLOR_INFO, styles.COLOR_GREY)
         self.btn_active_control.clicked.connect(self.toggle_active_control)
-        l_quick.addWidget(self.btn_active_control)
+        self.btn_test = AnimatedButton("测试", styles.COLOR_INFO, styles.COLOR_GREY)
+        self.btn_test.clicked.connect(self.send_test_command)
+
+        h_active_control = QHBoxLayout()
+        h_active_control.addWidget(self.btn_active_control)
+        h_active_control.addWidget(self.btn_test)
+        l_quick.addLayout(h_active_control)
 
         l_section1 = QHBoxLayout()
         self.spin_bend1 = self._create_custom_spinbox(0, 90, 0, prefix="第一段角度: ", suffix='°')
@@ -771,7 +777,7 @@ class DeviceTab(QWidget):
         msg_box.exec_()
         # 禁用所有操作按钮
         buttons = [
-            self.btn_toggle, self.btn_stop, self.btn_home, self.btn_active_control,
+            self.btn_toggle, self.btn_stop, self.btn_test, self.btn_home, self.btn_active_control,
             self.btn_closed_bend,self.btn_bend_all,
             self.btn_s1_up, self.btn_s1_down, self.btn_s1_left, self.btn_s1_right,
             self.btn_s2_up, self.btn_s2_down, self.btn_s2_left, self.btn_s2_right,
@@ -821,6 +827,26 @@ class DeviceTab(QWidget):
             error_msg = f"发送命令失败: {str(e)}"
             QMessageBox.critical(self, "错误", error_msg)
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
+
+    def send_test_command(self):
+        """发送不包含数据长度字段的三字节测试指令：AA 05 AF。"""
+        frame = bytes([0xAA, 0x05])
+        frame += bytes([sum(frame) & 0xFF])
+        debug_mode = self.debug_check() if self.debug_check else False
+
+        try:
+            if debug_mode and self.serial_error:
+                self.logger("[DEBUG] 测试指令（模拟发送）", raw_data=frame,
+                            level="DEBUG", port=self.port_name)
+                return
+
+            self.worker.send_data(frame)
+            GlobalHistory.add_record(self.port_name, "测试", "发送 AA 05 AF", frame.hex().upper())
+            self.logger("测试指令 -> AA 05 AF", raw_data=frame, port=self.port_name)
+        except Exception as e:
+            error_msg = f"发送测试指令失败: {str(e)}"
+            QMessageBox.critical(self, "错误", error_msg)
+            self.logger(error_msg, level="ERROR", port=self.port_name)
 
     def send_motor(self):
         debug_mode = self.debug_check() if self.debug_check else False
