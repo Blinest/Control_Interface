@@ -163,7 +163,7 @@ class DeviceTab(QWidget):
 
         self.btn_active_control = AnimatedButton("⚡ 主动控制", styles.COLOR_INFO, styles.COLOR_GREY)
         self.btn_active_control.clicked.connect(self.toggle_active_control)
-        self.btn_test = AnimatedButton("测试", styles.COLOR_INFO, styles.COLOR_GREY)
+        self.btn_test = AnimatedButton("🛜测试按钮", styles.COLOR_INFO, styles.COLOR_GREY)
         self.btn_test.clicked.connect(self.send_test_command)
 
         h_active_control = QHBoxLayout()
