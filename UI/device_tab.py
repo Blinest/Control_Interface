@@ -190,7 +190,7 @@ class DeviceTab(QWidget):
 
         self.btn_bend.clicked.connect(lambda checked: self.send_bend_command())
 
-        # 新增闭环弯曲按钮
+        # 闭环弯曲按钮
         self.btn_closed_bend = AnimatedButton("闭环弯曲","#FF8C00","#B85C00")  # 橙色风格
         self.btn_closed_bend.clicked.connect(self.send_closed_loop_bend_command)
 

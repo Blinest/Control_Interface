@@ -25,7 +25,7 @@ from datetime import datetime
 import time
 import serial
 import serial.tools.list_ports
-
+import sys
 
 class MainWindow(QMainWindow):
     # TARGET_PORT = "COM10"
@@ -371,23 +371,47 @@ class MainWindow(QMainWindow):
         else:
             self.text_raw.hide()
 
-    def auto_check_target_port(self):
-        all_ports = serial.tools.list_ports.comports()
-        # 读取所有已有的端口，然后将他们放在数组中
-        existing_ports = [port.device for port in all_ports]
+    # 虚拟/蓝牙端口黑名单关键词（Windows description 或 hwid 中常见）
+    _PORT_BLACKLIST_KEYWORDS = [
+        'BLUETOOTH', 'BTHENUM', 'MODEM', 'IRDA', 'VIRTUAL', 'VCOM',
+        'SERIAL MOUSE', 'FAX', 'RAS', 'VPN',
+    ]
+    def _is_real_device(self, port_info):
+        """判断一个串口是否为真实硬件设备，过滤掉蓝牙/虚拟/调制解调器等"""
+        desc = (port_info.description or '').upper()
+        hwid = (port_info.hwid or '').upper()
+        for kw in self._PORT_BLACKLIST_KEYWORDS:
+            if kw in desc or kw in hwid:
+                return False
+        return True
+
+    def _get_valid_ports(self):
+        """使用同一套跨平台规则枚举可连接的串口。"""
         valid_ports = []
+        seen = set()
 
-        # 如果目标端口在，那就直接加入有效端口
-        if self.target_port in existing_ports:
-            valid_ports.append(self.target_port)
-
-        for port in all_ports:
-            device = port.device
-            if device.startswith('/dev/ttyS') or device.startswith('/dev/ttyAMA'):
+        for port_info in serial.tools.list_ports.comports():
+            device = port_info.device
+            if device in seen:
                 continue
-            if "USB" in device.upper() or "ACM" in device.upper() or "CH341" in device.upper():
-                if device != self.target_port:
-                    valid_ports.append(device)
+
+            if sys.platform == 'win32':
+                is_valid = device.upper().startswith('COM') and self._is_real_device(port_info)
+            else:
+                is_system_port = device.startswith('/dev/ttyS') or device.startswith('/dev/ttyAMA')
+                device_upper = device.upper()
+                is_valid = not is_system_port and any(
+                    keyword in device_upper for keyword in ('USB', 'ACM', 'CH341')
+                )
+
+            if is_valid:
+                seen.add(device)
+                valid_ports.append(device)
+
+        return valid_ports
+
+    def auto_check_target_port(self):
+        valid_ports = self._get_valid_ports()
 
         if not valid_ports:
             if self.combo_ports.currentText() != "无可用串口":
@@ -470,33 +494,16 @@ class MainWindow(QMainWindow):
         dev.active_graph_controller = controller
 
         ui.show()
-
     def refresh_ports(self):
         self.combo_ports.clear()
-        all_ports = serial.tools.list_ports.comports()
-        valid_ports = []
-        existing_ports = [port.device for port in all_ports]
-
-        if self.target_port in existing_ports:
-            valid_ports.append(self.target_port)
-
-        for port in all_ports:
-            device = port.device
-            if device.startswith("/dev/ttyS") or device.startswith("/dev/ttyAMA"):
-                continue
-
-            if ("USB" in device.upper() or "ACM" in device.upper() or "CH341" in device.upper()):
-                if device != self.target_port:
-                    valid_ports.append(device)
-
+        valid_ports = self._get_valid_ports()
         if valid_ports:
-            seen = set()
-            unique_ports = [x for x in valid_ports if not (x in seen or seen.add(x))]
-            self.combo_ports.addItems(unique_ports)
-            if self.target_port in unique_ports:
+            self.combo_ports.addItems(valid_ports)
+            if self.target_port in valid_ports:
                 self.combo_ports.setCurrentText(self.target_port)
         else:
             self.combo_ports.addItem("无可用串口")
+
     def add_manual_device(self):
         port = self.manual_port_edit.text().strip()
         if not port:
