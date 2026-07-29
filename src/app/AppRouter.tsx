@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 export interface AppRouterProps {
   dashboard: ReactNode;
-  workspace: ReactNode;
+  deviceWorkspace: ReactNode;
   charts: ReactNode;
   sessions: ReactNode;
   logs: ReactNode;
@@ -12,7 +12,7 @@ export interface AppRouterProps {
 
 export function AppRouter({
   dashboard,
-  workspace,
+  deviceWorkspace,
   charts,
   sessions,
   logs,
@@ -22,7 +22,7 @@ export function AppRouter({
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={dashboard} />
-      <Route path="/workspace" element={workspace} />
+      <Route path="/workspace" element={deviceWorkspace} />
       <Route path="/charts" element={charts} />
       <Route path="/sessions" element={sessions} />
       <Route path="/logs" element={logs} />

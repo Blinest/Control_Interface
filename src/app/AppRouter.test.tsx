@@ -6,7 +6,7 @@ import { AppRouter } from "./AppRouter";
 describe("AppRouter", () => {
   const routeSlots = {
     dashboard: <div>Dashboard content</div>,
-    workspace: <div>Workspace content</div>,
+    deviceWorkspace: <div>Workspace content</div>,
     charts: <div>Charts content</div>,
     sessions: <div>Sessions content</div>,
     logs: <div>Logs content</div>,

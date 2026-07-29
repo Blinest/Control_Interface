@@ -1,26 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  Activity,
   AlertTriangle,
-  ArrowRightLeft,
-  Cable,
   CheckCircle2,
   Cpu,
   Database,
   Eye,
   Fingerprint,
-  ListChecks,
   Logs,
   PauseCircle,
-  Play,
-  RefreshCw,
   Save,
   Settings2,
-  SlidersHorizontal,
   SunMedium,
-  Table2,
-  Wifi,
 } from "lucide-react";
 import { HashRouter } from "react-router-dom";
 
@@ -28,15 +19,22 @@ import { AppRouter } from "./app/AppRouter";
 import { AppShell } from "./app/AppShell";
 import ChartsPage from "./charts";
 import ConnectDialog from "./components/ConnectDialog";
-import DeviceCard from "./components/DeviceCard";
 import PlaybackBar from "./components/PlaybackBar";
 import { ConfirmDialog } from "./components/feedback/ConfirmDialog";
+import { DashboardPage } from "./features/dashboard/DashboardPage";
 import {
   createConfirmationSafetyContext,
   getLatchedDeviceIds,
   resolveRecoveryDeviceId,
   shouldInvalidateConfirmation,
 } from "./features/device-workspace/deviceSafety";
+import {
+  DeviceWorkspacePage,
+  type MotorCommandRequest,
+  type SystemControlAction,
+  type WorkspaceCommand,
+  type WorkspaceCommandPayload,
+} from "./features/device-workspace/DeviceWorkspacePage";
 import { useSafeCommand } from "./features/device-workspace/useSafeCommand";
 import type { CommandKind } from "./services/commandPolicy";
 import { tauriClient } from "./services/tauriClient";
@@ -45,10 +43,10 @@ import { makeFallbackSnapshot } from "./state/fallbackSnapshot";
 import { applyTheme, readThemePreference, resolveTheme, writeThemePreference } from "./state/themeStore";
 import SessionsPage from "./pages/SessionsPage";
 import type {
-  CalibrationStep,
   AuthSession,
   ConnectDeviceRequest,
   ConnectionProfile,
+  ControlRuntimeStatus,
   DeviceConnectionRecord,
   DeviceRuntimeStatusView,
   LogLevel,
@@ -71,22 +69,6 @@ function isoShort(ms: number) {
     second: "2-digit",
     hour12: false,
   }).format(new Date(ms));
-}
-
-function isoFull(ms: number) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(new Date(ms));
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
 }
 
 function resolveThemeForUser(username: string): ThemeMode {
@@ -226,527 +208,15 @@ function LoginPage({
   );
 }
 
-type WorkspacePane = "overview" | "table" | "control" | "history";
-type SystemControlAction = "enable" | "disable" | "emergencyStop";
-type WorkspaceCommand = "home" | "calibrateSensor" | "bend" | "activeTick";
-type MotorCommandDraft = {
-  motorId: number;
-  positionMm: number;
-  velocityMmPerSec: number;
-  accelerationMmPerSec2: number;
-};
-type WorkspaceCommandPayload = {
-  sensorId?: number;
-  calibrationValue?: number;
-  direction1?: number;
-  angle1Deg?: number;
-  direction2?: number;
-  angle2Deg?: number;
-};
-
-function WorkspacePage({
-  snapshot,
-  serialPorts,
-  serialPortsError,
-  connectedDevices,
-  deviceStatuses,
-  motionLocked,
-  connectionError,
-  onOpenConnectDialog,
-  onDisconnectDevice,
-  onRefreshSerialPorts,
-  onSystemControl,
-  onSendMotor,
-  onWorkspaceCommand,
-}: {
-  snapshot: RuntimeSnapshot;
-  serialPorts: SerialPortDescriptor[];
-  serialPortsError: string | null;
-  connectedDevices: DeviceConnectionRecord[];
-  deviceStatuses: Record<string, DeviceRuntimeStatusView>;
-  motionLocked: boolean;
-  connectionError: string | null;
-  onOpenConnectDialog: () => void;
-  onDisconnectDevice: (deviceId: string) => void;
-  onRefreshSerialPorts: () => void;
-  onSystemControl: (action: SystemControlAction) => void;
-  onSendMotor: (command: MotorCommandDraft) => void;
-  onWorkspaceCommand: (command: WorkspaceCommand, payload?: WorkspaceCommandPayload) => void;
-}) {
-  const [pane, setPane] = useState<WorkspacePane>("overview");
-  const [motorDraft, setMotorDraft] = useState<MotorCommandDraft>({
-    motorId: 1,
-    positionMm: 0,
-    velocityMmPerSec: 10,
-    accelerationMmPerSec2: 3,
-  });
-  const [motorInlineTargets, setMotorInlineTargets] = useState<Record<number, number>>({});
-  const [sensorDraft, setSensorDraft] = useState({ sensorId: 1, calibrationValue: 0 });
-  const [bendDraft, setBendDraft] = useState({
-    direction1: 0,
-    angle1Deg: snapshot.calibration.targetAngles[0],
-    direction2: 0,
-    angle2Deg: snapshot.calibration.targetAngles[1],
-  });
-  const latestFrame = snapshot.live.frames[0];
-  const activeSession = snapshot.playback.sessions.find((session) => session.id === snapshot.playback.activeSessionId) ?? snapshot.playback.sessions[0];
-  const progress = clamp((snapshot.playback.cursorMs / Math.max(snapshot.playback.durationMs, 1)) * 100, 0, 100);
-  const motorRows = snapshot.live.frames.flatMap((frame) =>
-    frame.motors.map((motor) => ({
-      frame,
-      motor,
-    })),
-  );
-  const sensorRows = snapshot.live.frames.flatMap((frame) =>
-    frame.sensors.map((sensor) => ({
-      frame,
-      sensor,
-    })),
-  );
-  const sections = [
-    { key: "overview" as const, icon: Activity, title: "监控" },
-    { key: "table" as const, icon: Table2, title: "表格" },
-    { key: "control" as const, icon: SlidersHorizontal, title: "控制" },
-    { key: "history" as const, icon: Play, title: "回放" },
-  ];
-
-  return (
-    <div className="workspace-page">
-      <div className="workspace-tabs" role="tablist" aria-label="workspace sections">
-        {sections.map((section) => {
-          const Icon = section.icon;
-          return (
-            <button
-              key={section.key}
-              type="button"
-              className={`workspace-tab ${pane === section.key ? "active" : ""}`}
-              onClick={() => setPane(section.key)}
-            >
-              <Icon size={15} />
-              <span>{section.title}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {pane === "overview" ? (
-        <div className="page-grid workspace-grid workspace-overview-grid">
-          <Panel title="系统操作" subtitle="workspace" icon={Cable} wide>
-            <div className="workspace-split">
-              <div className="workspace-list">
-                <div className="stack-item">
-                  <span>连接状态</span>
-                  <strong>{snapshot.connection.state}</strong>
-                </div>
-                <div className="stack-item">
-                  <span>当前设备</span>
-                  <strong>{snapshot.live.selectedDeviceId}</strong>
-                </div>
-                <div className="stack-item">
-                  <span>采样 / 帧率</span>
-                  <strong>
-                    {snapshot.dashboard.sampleRateHz} Hz / {snapshot.dashboard.frameRateHz} fps
-                  </strong>
-                </div>
-                <div className="stack-item">
-                  <span>握手阶段</span>
-                  <strong>{snapshot.connection.handshakeStep}</strong>
-                </div>
-                <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${snapshot.connection.handshakeProgress}%` }} />
-                </div>
-              </div>
-              <div className="workspace-list">
-                <div className="stack-item">
-                  <span>真实串口</span>
-                  <strong>{serialPorts.length} 个</strong>
-                </div>
-                <div className="stack-item">
-                  <span>扫描状态</span>
-                  <strong>{serialPortsError ?? "ready"}</strong>
-                </div>
-                <div className="button-stack">
-                  <button type="button" className="ghost-btn full" onClick={onRefreshSerialPorts}>
-                    <RefreshCw size={16} />
-                    <span>扫描串口</span>
-                  </button>
-                  <button type="button" className="ghost-btn full" onClick={onOpenConnectDialog}>
-                    <Wifi size={16} />
-                    <span>连接新设备</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-btn full"
-                    disabled={motionLocked && snapshot.connection.state !== "ready"}
-                    onClick={() => onSystemControl(snapshot.connection.state === "ready" ? "disable" : "enable")}
-                  >
-                    <CheckCircle2 size={16} />
-                    <span>使能 / 失能</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </Panel>
-
-          <Panel title="串口发现" subtitle="transport" icon={Cable} wide>
-            {connectionError ? (
-              <div className="connection-error">
-                <AlertTriangle size={14} />
-                <span>{connectionError}</span>
-              </div>
-            ) : null}
-
-            {connectedDevices.length > 0 ? (
-              <div className="device-grid" style={{ marginBottom: 10 }}>
-                {connectedDevices.map((dev) => (
-                  <DeviceCard
-                    key={dev.deviceId}
-                    device={dev}
-                    runtimeStatus={deviceStatuses[dev.deviceId] ?? null}
-                    onDisconnect={onDisconnectDevice}
-                  />
-                ))}
-              </div>
-            ) : null}
-
-            <button type="button" className="ghost-btn full" onClick={onOpenConnectDialog} style={{ marginBottom: 10 }}>
-              <Wifi size={16} />
-              <span>连接新设备</span>
-            </button>
-
-            <div className="port-list">
-              {serialPorts.length === 0 ? (
-                <div className="port-card">
-                  <div>
-                    <strong>未发现真实串口</strong>
-                    <span>可继续使用 Simulator；连接硬件后点击刷新串口。</span>
-                  </div>
-                  <Badge tone="warn">无串口</Badge>
-                </div>
-              ) : (
-                serialPorts.map((port) => (
-                  <div className="port-card" key={port.portName}>
-                    <div>
-                      <strong>{port.portName}</strong>
-                      <span>
-                        {port.description ?? port.product ?? "Serial port"} · {port.manufacturer ?? port.portType}
-                      </span>
-                    </div>
-                    <div className="port-meta">
-                      <Badge tone={port.likelyAvailable ? "ok" : "warn"}>{port.portType.toUpperCase()}</Badge>
-                      {port.vid != null && port.pid != null ? (
-                        <span>
-                          VID {port.vid.toString(16).padStart(4, "0").toUpperCase()} / PID{" "}
-                          {port.pid.toString(16).padStart(4, "0").toUpperCase()}
-                        </span>
-                      ) : (
-                        <span>{port.likelyAvailable ? "可用" : "已过滤"}</span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Panel>
-        </div>
-      ) : null}
-
-      {pane === "table" ? (
-        <div className="page-grid workspace-grid workspace-table-grid">
-          <Panel title="电机快照" subtitle="workspace" icon={Table2} wide>
-            <div className="data-table scroll">
-              <div className="data-row head">
-                <span>时间</span>
-                <span>帧号</span>
-                <span>对象</span>
-                <span>位置</span>
-                <span>速度</span>
-                <span>状态</span>
-              </div>
-              {motorRows.slice(0, 6).map(({ frame, motor }) => (
-                <div className="data-row" key={`${frame.sequence}-${motor.id}`}>
-                  <span>{isoShort(frame.receivedAtMs)}</span>
-                  <span>#{frame.sequence}</span>
-                  <span>电机 {motor.id}</span>
-                  <span>{motor.positionMm.toFixed(2)} mm</span>
-                  <span>{motor.velocityMmPerSec.toFixed(2)} mm/s</span>
-                  <span>
-                    <Badge tone={frame.quality.status === "ok" ? "ok" : "warn"}>{frame.quality.status}</Badge>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel title="传感器快照" subtitle="workspace" icon={Eye} wide>
-            <div className="data-table scroll">
-              <div className="data-row head">
-                <span>时间</span>
-                <span>帧号</span>
-                <span>对象</span>
-                <span>X</span>
-                <span>Y</span>
-                <span>Z</span>
-              </div>
-              {sensorRows.slice(0, 6).map(({ frame, sensor }) => (
-                <div className="data-row" key={`${frame.sequence}-sensor-${sensor.id}`}>
-                  <span>{isoShort(frame.receivedAtMs)}</span>
-                  <span>#{frame.sequence}</span>
-                  <span>传感器 {sensor.id}</span>
-                  <span>{sensor.filtered[0].toFixed(2)}</span>
-                  <span>{sensor.filtered[1].toFixed(2)}</span>
-                  <span>{sensor.filtered[2].toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </div>
-      ) : null}
-
-      {pane === "control" ? (
-        <div className="page-grid workspace-grid workspace-control-grid">
-          <Panel title="系统状态" subtitle="工作区" icon={Activity} wide>
-            {motionLocked ? (
-              <div className="motion-lock-reason" role="status">
-                <AlertTriangle size={15} />
-                <span>急停已锁定，全部运动控制已禁用。</span>
-              </div>
-            ) : null}
-            <div className="status-strip">
-              <div className="status-strip-item">
-                <span className="status-strip-label">连接状态</span>
-                <Badge tone={snapshot.connection.state === "ready" ? "ok" : snapshot.connection.state === "error" ? "error" : "warn"}>
-                  {snapshot.connection.state === "ready" ? "已连接" : snapshot.connection.state === "idle" ? "空闲" : snapshot.connection.state === "connecting" ? "连接中" : snapshot.connection.state === "error" ? "错误" : snapshot.connection.state}
-                </Badge>
-              </div>
-              <div className="status-strip-item">
-                <span className="status-strip-label">使能状态</span>
-                <Badge tone={latestFrame.systemEnabled ? "ok" : "warn"}>
-                  {latestFrame.systemEnabled ? "已使能" : "已失能"}
-                </Badge>
-              </div>
-              <div className="status-strip-item">
-                <span className="status-strip-label">设备</span>
-                <strong>{snapshot.live.selectedDeviceId}</strong>
-              </div>
-              <div className="status-strip-actions">
-                <button type="button" className="ghost-btn" disabled={motionLocked} onClick={() => onSystemControl("enable")}>
-                  <CheckCircle2 size={15} />
-                  <span>使能</span>
-                </button>
-                <button type="button" className="ghost-btn" onClick={() => onSystemControl("disable")}>
-                  <PauseCircle size={15} />
-                  <span>失能</span>
-                </button>
-              </div>
-            </div>
-          </Panel>
-
-          <Panel title="电机控制与状态" subtitle="工作区" icon={ArrowRightLeft} wide>
-            <div className="motor-inline-bar">
-              <label>
-                <span>通道</span>
-                <input type="number" min={1} max={6} value={motorDraft.motorId}
-                  onChange={(event) => setMotorDraft((draft) => ({ ...draft, motorId: Number(event.target.value) }))} />
-              </label>
-              <label>
-                <span>目标 mm</span>
-                <input type="number" step={0.1} value={motorDraft.positionMm}
-                  onChange={(event) => setMotorDraft((draft) => ({ ...draft, positionMm: Number(event.target.value) }))} />
-              </label>
-              <label>
-                <span>速度</span>
-                <input type="number" min={0} step={0.1} value={motorDraft.velocityMmPerSec}
-                  onChange={(event) => setMotorDraft((draft) => ({ ...draft, velocityMmPerSec: Number(event.target.value) }))} />
-              </label>
-              <label>
-                <span>加速度</span>
-                <input type="number" min={0} step={0.1} value={motorDraft.accelerationMmPerSec2}
-                  onChange={(event) => setMotorDraft((draft) => ({ ...draft, accelerationMmPerSec2: Number(event.target.value) }))} />
-              </label>
-              <button type="button" className="ghost-btn" disabled={motionLocked} onClick={() => onSendMotor(motorDraft)}>
-                <ArrowRightLeft size={14} />
-                <span>发送</span>
-              </button>
-            </div>
-            <div className="motor-control-grid">
-              {latestFrame.motors.map((motor) => (
-                <article className="motor-control-card" key={motor.id}>
-                  <div className="motor-control-head">
-                    <strong>电机 {motor.id}</strong>
-                    <Badge tone={motor.running ? "ok" : "warn"}>{motor.running ? "运行" : "停止"}</Badge>
-                  </div>
-                  <div className="motor-control-values">
-                    <div>
-                      <span>当前位置</span>
-                      <strong>{motor.positionMm.toFixed(1)} mm</strong>
-                    </div>
-                    <div>
-                      <span>目标位置</span>
-                      <input
-                        type="number" step={0.1}
-                        className="motor-target-input"
-                        value={motorInlineTargets[motor.id] ?? motor.targetPositionMm}
-                        onChange={(event) => setMotorInlineTargets((prev) => ({ ...prev, [motor.id]: Number(event.target.value) }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="motor-control-actions">
-                    <button type="button" className="ghost-btn" disabled={motionLocked}
-                      onClick={() => onSendMotor({ motorId: motor.id, positionMm: motorInlineTargets[motor.id] ?? motor.targetPositionMm, velocityMmPerSec: Math.max(motor.velocityMmPerSec, 1), accelerationMmPerSec2: Math.max(motor.accelerationMmPerSec2, 1) })}>
-                      <ArrowRightLeft size={14} />
-                      <span>发送</span>
-                    </button>
-                    <button type="button" className="ghost-btn" onClick={() => onSystemControl("disable")}>
-                      <PauseCircle size={14} />
-                      <span>停机</span>
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel title="传感器校准" subtitle="工作区" icon={CheckCircle2}>
-            <div className="command-form">
-              <span className="command-form-title">校准参数</span>
-              <label>
-                <span>传感器</span>
-                <input type="number" min={1} max={6} value={sensorDraft.sensorId}
-                  onChange={(event) => setSensorDraft((draft) => ({ ...draft, sensorId: Number(event.target.value) }))} />
-              </label>
-              <label>
-                <span>校准值</span>
-                <input type="number" step={0.01} value={sensorDraft.calibrationValue}
-                  onChange={(event) => setSensorDraft((draft) => ({ ...draft, calibrationValue: Number(event.target.value) }))} />
-              </label>
-              <button type="button" className="ghost-btn full" onClick={() => onWorkspaceCommand("calibrateSensor", sensorDraft)}>
-                <CheckCircle2 size={15} />
-                <span>发送校准</span>
-              </button>
-            </div>
-            <div className="workspace-list" style={{ marginTop: 12 }}>
-              {snapshot.calibration.steps.map((step: CalibrationStep) => (
-                <div className={`step-item ${step.done ? "done" : ""} ${step.active ? "active" : ""}`} key={step.id}>
-                  <span className="step-index">{step.id}</span>
-                  <div className="step-copy">
-                    <strong>{step.label}</strong>
-                    <span>{step.done ? "已完成" : step.active ? "进行中" : "待处理"}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel title="弯曲与主动控制" subtitle="工作区" icon={ArrowRightLeft}>
-            <div className="command-form">
-              <span className="command-form-title">弯曲命令</span>
-              <label>
-                <span>方向1</span>
-                <select value={bendDraft.direction1}
-                  onChange={(event) => setBendDraft((draft) => ({ ...draft, direction1: Number(event.target.value) }))}>
-                  <option value={0}>上</option>
-                  <option value={1}>下</option>
-                  <option value={2}>左</option>
-                  <option value={3}>右</option>
-                </select>
-              </label>
-              <label>
-                <span>角度1</span>
-                <input type="number" min={0} max={90} step={0.1} value={bendDraft.angle1Deg}
-                  onChange={(event) => setBendDraft((draft) => ({ ...draft, angle1Deg: Number(event.target.value) }))} />
-              </label>
-              <label>
-                <span>方向2</span>
-                <select value={bendDraft.direction2}
-                  onChange={(event) => setBendDraft((draft) => ({ ...draft, direction2: Number(event.target.value) }))}>
-                  <option value={0}>上</option>
-                  <option value={1}>下</option>
-                  <option value={2}>左</option>
-                  <option value={3}>右</option>
-                </select>
-              </label>
-              <label>
-                <span>角度2</span>
-                <input type="number" min={0} max={90} step={0.1} value={bendDraft.angle2Deg}
-                  onChange={(event) => setBendDraft((draft) => ({ ...draft, angle2Deg: Number(event.target.value) }))} />
-              </label>
-              <button type="button" className="ghost-btn full" disabled={motionLocked} onClick={() => onWorkspaceCommand("bend", bendDraft)}>
-                <ArrowRightLeft size={15} />
-                <span>发送弯曲</span>
-              </button>
-            </div>
-            <div className="button-stack" style={{ marginTop: 12 }}>
-              <button type="button" className="ghost-btn full" disabled={motionLocked} onClick={() => onWorkspaceCommand("home")}>
-                <ArrowRightLeft size={16} />
-                <span>一键归中</span>
-              </button>
-              <button type="button" className="ghost-btn full" disabled={motionLocked} onClick={() => onWorkspaceCommand("activeTick")}>
-                <Activity size={16} />
-                <span>主动控制</span>
-              </button>
-            </div>
-          </Panel>
-        </div>
-      ) : null}
-
-      {pane === "history" ? (
-        <div className="page-grid workspace-grid">
-          <Panel title="会话与回放" subtitle="workspace" icon={Play} wide>
-            <div className="timeline">
-              <div className="timeline-bar">
-                <div className="timeline-fill" style={{ width: `${progress}%` }} />
-              </div>
-              <div className="timeline-meta">
-                <span>{isoFull(snapshot.playback.cursorMs)}</span>
-                <span>{snapshot.playback.speed.toFixed(1)}x</span>
-                <span>{snapshot.playback.durationMs / 1000}s</span>
-              </div>
-            </div>
-            <div className="mini-info">
-              当前会话：<strong>{activeSession?.name}</strong>
-            </div>
-          </Panel>
-
-          <Panel title="会话列表" subtitle="workspace" icon={Database}>
-            <div className="stack-list">
-              {snapshot.playback.sessions.map((session) => (
-                <div className="stack-item" key={session.id}>
-                  <span>{session.name}</span>
-                  <strong>{session.recordCount.toLocaleString()} 条记录</strong>
-                </div>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel title="最近日志" subtitle="workspace" icon={Logs} wide>
-            <div className="log-list compact">
-              {snapshot.logs.slice(0, 4).map((entry) => (
-                <div className="log-row" key={entry.id}>
-                  <Badge tone={toneForLevel(entry.level)}>{entry.level.toUpperCase()}</Badge>
-                  <span className="log-scope">{entry.scope}</span>
-                  <span className="log-message">{entry.message}</span>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function AppController() {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot>(makeFallbackSnapshot);
   const [currentDeviceId, setCurrentDeviceId] = useState(() => localStorage.getItem("softui:currentDeviceId") ?? "");
   const currentDeviceIdRef = useRef(currentDeviceId);
   const connectedDevicesRefreshIdRef = useRef(0);
   const [serialPorts, setSerialPorts] = useState<SerialPortDescriptor[]>([]);
-  const [serialPortsError, setSerialPortsError] = useState<string | null>(null);
   const [connectedDevices, setConnectedDevices] = useState<DeviceConnectionRecord[]>([]);
   const [deviceStatuses, setDeviceStatuses] = useState<Record<string, DeviceRuntimeStatusView>>({});
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connectionProfiles, setConnectionProfiles] = useState<ConnectionProfile[]>([]);
   const [recorderStatus, setRecorderStatus] = useState<RecorderStatus>({ active: false, sessionId: "", sessionName: "", frameCount: 0, elapsedSecs: 0, paused: false });
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -824,10 +294,9 @@ function AppController() {
     try {
       const ports = await tauriClient.invoke<SerialPortDescriptor[]>("list_serial_ports");
       setSerialPorts(ports);
-      setSerialPortsError(null);
     } catch (invokeError) {
       setSerialPorts([]);
-      setSerialPortsError(invokeError instanceof Error ? invokeError.message : "Unable to scan serial ports");
+      console.error(invokeError);
     }
   }, []);
 
@@ -984,7 +453,6 @@ function AppController() {
 
   const handleConnectDevice = useCallback(async (request: ConnectDeviceRequest) => {
     await tauriClient.invoke("connect_device", { request });
-    setConnectionError(null);
     await refreshConnectedDevices();
   }, [refreshConnectedDevices]);
 
@@ -1208,8 +676,6 @@ function AppController() {
   }, [playbackStatus?.active]);
 
   const toggleConnection = useCallback(async () => {
-    // Open the connect dialog instead of the old toggle behavior
-    setConnectionError(null);
     setConnectDialogOpen(true);
   }, []);
 
@@ -1225,8 +691,13 @@ function AppController() {
     }
   }, []);
 
-  const submitSystemControl = useCallback(async (action: SystemControlAction) => {
-    const deviceId = currentDeviceId;
+  const submitSystemControl = useCallback(async (
+    action: SystemControlAction,
+    requestedDeviceId = currentDeviceId,
+  ) => {
+    const deviceId = requestedDeviceId;
+    if (action !== "emergencyStop" && (!deviceId || deviceId !== currentDeviceId)) return;
+
     if (action === "disable") {
       await runSystemControl(deviceId, action);
       return;
@@ -1249,11 +720,11 @@ function AppController() {
     );
   }, [deviceStatuses, runSystemControl, safeCommand.execute]);
 
-  const sendMotorCommand = useCallback(async (command: MotorCommandDraft) => {
-    if (emergencyLatched) return;
+  const sendMotorCommand = useCallback(async (command: MotorCommandRequest) => {
+    if (emergencyLatched || !command.deviceId || command.deviceId !== currentDeviceId) return;
 
     const request = {
-      deviceId: currentDeviceId,
+      deviceId: command.deviceId,
       motorId: command.motorId,
       positionMm: command.positionMm,
       velocityMmPerSec: Math.max(command.velocityMmPerSec, 1),
@@ -1272,10 +743,67 @@ function AppController() {
     });
   }, [currentDeviceId, emergencyLatched, safeCommand.execute]);
 
-  const submitWorkspaceCommand = useCallback(async (command: WorkspaceCommand, payload: WorkspaceCommandPayload = {}) => {
-    const deviceId = currentDeviceId;
+  const submitWorkspaceCommand = useCallback(async (command: WorkspaceCommand, payload: WorkspaceCommandPayload) => {
+    const deviceId = payload.deviceId;
+    if (!deviceId || deviceId !== currentDeviceId) return;
+
+    if (command === "loadPlayback") {
+      if (payload.sessionId) await loadPlayback(payload.sessionId);
+      return;
+    }
+    if (command === "playbackToggle") {
+      await playbackPlayPause();
+      return;
+    }
+    if (command === "playbackStop") {
+      await playbackStop();
+      return;
+    }
+    if (command === "playbackSeek") {
+      await playbackSeek(payload.ms ?? 0);
+      return;
+    }
+    if (command === "playbackSpeed") {
+      await playbackSetSpeed(payload.speed ?? 1);
+      return;
+    }
+
+    if (command === "updatePid" || command === "configureCycle") {
+      try {
+        const controlRuntime = command === "updatePid"
+          ? await tauriClient.invoke<ControlRuntimeStatus>("update_pid_control", {
+              config: payload.pid ?? snapshot.controlRuntime.pid,
+              deviceId,
+            })
+          : await tauriClient.invoke<ControlRuntimeStatus>("configure_cycle_life", {
+              config: payload.cycle ?? snapshot.controlRuntime.cycle,
+              deviceId,
+            });
+        setSnapshot((previous) => ({ ...previous, controlRuntime }));
+      } catch (invokeError) {
+        console.error(invokeError);
+      }
+      return;
+    }
+
+    if (command === "stopCycle") {
+      try {
+        const next = await tauriClient.invoke<RuntimeSnapshot>("stop_cycle_life", {
+          deviceId,
+          reason: payload.reason ?? "operator stopped cycle life",
+        });
+        setSnapshot({
+          ...next,
+          live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
+        });
+      } catch (invokeError) {
+        console.error(invokeError);
+      }
+      return;
+    }
+
     const targetAngles = snapshot.calibration.targetAngles;
-    const commandMap: Record<WorkspaceCommand, { kind: CommandKind; name: string; request: Record<string, unknown> }> = {
+    const commandMap: Partial<Record<WorkspaceCommand, { kind: CommandKind; name: string; request: Record<string, unknown> }>> = {
       home: {
         kind: "home",
         name: "send_home_command",
@@ -1306,8 +834,14 @@ function AppController() {
         name: "send_active_control_tick",
         request: { deviceId },
       },
+      startCycle: {
+        kind: "cycleControl",
+        name: "start_cycle_life",
+        request: { deviceId, config: payload.cycle ?? snapshot.controlRuntime.cycle },
+      },
     };
     const selected = commandMap[command];
+    if (!selected) return;
     if (emergencyLatched && command !== "calibrateSensor") return;
 
     await safeCommand.execute(selected.kind, selected.request, async () => {
@@ -1321,7 +855,19 @@ function AppController() {
         console.error(invokeError);
       }
     });
-  }, [currentDeviceId, emergencyLatched, safeCommand.execute, snapshot.calibration.targetAngles]);
+  }, [
+    currentDeviceId,
+    emergencyLatched,
+    loadPlayback,
+    playbackPlayPause,
+    playbackSeek,
+    playbackSetSpeed,
+    playbackStop,
+    safeCommand.execute,
+    snapshot.calibration.targetAngles,
+    snapshot.controlRuntime.cycle,
+    snapshot.controlRuntime.pid,
+  ]);
 
   if (!snapshot.authSession.authenticated || snapshot.authSession.mustChangePassword) {
     return (
@@ -1396,16 +942,25 @@ function AppController() {
           />
         ) : null}
         <AppRouter
-          dashboard={<DashboardPage snapshot={snapshot} />}
-          workspace={
-            <WorkspacePage
+          dashboard={
+            <DashboardPage
               snapshot={snapshot}
-              serialPorts={serialPorts}
-              serialPortsError={serialPortsError}
               connectedDevices={connectedDevices}
               deviceStatuses={deviceStatuses}
-              motionLocked={emergencyLatched}
-              connectionError={connectionError}
+              recorderStatus={recorderStatus}
+              sessions={sessions}
+            />
+          }
+          deviceWorkspace={
+            <DeviceWorkspacePage
+              snapshot={snapshot}
+              currentDeviceId={currentDeviceId}
+              connectedDevices={connectedDevices}
+              deviceStatuses={deviceStatuses}
+              recorderStatus={recorderStatus}
+              sessions={sessions}
+              playbackStatus={playbackStatus}
+              onSelectDevice={setCurrentDevice}
               onOpenConnectDialog={toggleConnection}
               onDisconnectDevice={handleDisconnectDevice}
               onRefreshSerialPorts={refreshSerialPorts}
@@ -1468,109 +1023,6 @@ function AppController() {
           onCancel={safeCommand.cancel}
         />
       </AppShell>
-    </div>
-  );
-}
-
-function DashboardPage({ snapshot }: { snapshot: RuntimeSnapshot }) {
-  const latestFrame = snapshot.live.frames[0];
-  return (
-    <div className="page-grid dashboard-grid">
-      <Panel title="设备工作台" subtitle="dashboard" icon={Database} wide>
-        <div className="data-table">
-          <div className="data-row head">
-            <span>设备</span>
-            <span>状态</span>
-            <span>帧号</span>
-            <span>延迟</span>
-          </div>
-          <div className="data-row">
-            <span>{latestFrame.deviceId}</span>
-            <span><Badge tone={latestFrame.systemEnabled ? "ok" : "warn"}>{latestFrame.systemEnabled ? "已使能" : "空闲"}</Badge></span>
-            <span>#{latestFrame.sequence}</span>
-            <span>{latestFrame.quality.latencyMs} ms</span>
-          </div>
-        </div>
-
-        <div className="mini-grid">
-          {latestFrame.motors.map((motor) => (
-            <article className="mini-card" key={motor.id}>
-              <div className="mini-title">电机 {motor.id}</div>
-              <div className="mini-value">{motor.positionMm.toFixed(1)} mm</div>
-              <div className="mini-sub">{motor.velocityMmPerSec.toFixed(1)} mm/s</div>
-            </article>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel title="会话概览" subtitle="dashboard" icon={ListChecks}>
-        <div className="stack-list">
-          <div className="stack-item">
-            <span>会话</span>
-            <strong>{snapshot.dashboard.currentSession}</strong>
-          </div>
-          <div className="stack-item">
-            <span>配置</span>
-            <strong>{snapshot.connection.activeProfileName}</strong>
-          </div>
-          <div className="stack-item">
-            <span>模型</span>
-            <strong>{snapshot.model.name}</strong>
-          </div>
-        </div>
-      </Panel>
-
-      <Panel title="最近事件" subtitle="dashboard" icon={Logs}>
-        <div className="log-list compact">
-          {snapshot.logs.slice(0, 4).map((entry) => (
-            <div className="log-row" key={entry.id}>
-              <Badge tone={toneForLevel(entry.level)}>{entry.level.toUpperCase()}</Badge>
-              <span className="log-scope">{entry.scope}</span>
-              <span className="log-message">{entry.message}</span>
-            </div>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel title="连接健康" subtitle="dashboard" icon={Wifi} wide>
-        <div className="health-strip">
-          <div>
-            <div className="section-label">连接状态</div>
-            <div className="health-value">{snapshot.connection.state}</div>
-          </div>
-          <div>
-            <div className="section-label">握手进度</div>
-            <div className="health-value">{snapshot.connection.handshakeProgress}%</div>
-          </div>
-          <div>
-            <div className="section-label">帧质量</div>
-            <div className="health-value">{latestFrame.quality.status}</div>
-          </div>
-          <div>
-            <div className="section-label">Live buffer</div>
-            <div className="health-value">{snapshot.runtimeDiagnostics.storedFrames}/{snapshot.runtimeDiagnostics.liveCapacity}</div>
-          </div>
-          <div>
-            <div className="section-label">Pending queue</div>
-            <div className="health-value">{snapshot.runtimeDiagnostics.pendingCommands}</div>
-          </div>
-          <div>
-            <div className="section-label">Protocol errors</div>
-            <div className="health-value">{snapshot.runtimeDiagnostics.invalidFrames}</div>
-            <span>
-              CRC {snapshot.runtimeDiagnostics.checksumErrors} / Decode {snapshot.runtimeDiagnostics.decodeErrors}
-            </span>
-          </div>
-          <div>
-            <div className="section-label">E-stop latch</div>
-            <div className="health-value">{snapshot.runtimeDiagnostics.emergencyLatched ? "yes" : "no"}</div>
-          </div>
-          <div>
-            <div className="section-label">Control</div>
-            <div className="health-value">{snapshot.controlRuntime.active ? snapshot.controlRuntime.phase : "inactive"}</div>
-          </div>
-        </div>
-      </Panel>
     </div>
   );
 }
