@@ -29,7 +29,6 @@ export function CardSizeMenu({ cardLabel, size, onChange }: CardSizeMenuProps) {
       <button
         aria-controls={menuId}
         aria-expanded={open}
-        aria-haspopup="menu"
         aria-label={`调整${cardLabel}卡片大小`}
         className="card-icon-button"
         onClick={() => setOpen((isOpen) => !isOpen)}
@@ -38,20 +37,20 @@ export function CardSizeMenu({ cardLabel, size, onChange }: CardSizeMenuProps) {
         <Maximize2 aria-hidden="true" size={16} />
       </button>
       {open ? (
-        <div aria-label={`${cardLabel}卡片尺寸`} className="card-size-options" id={menuId} role="menu">
+        <ul aria-label={`${cardLabel}卡片尺寸`} className="card-size-options" id={menuId}>
           {sizeOptions.map((option) => (
-            <button
-              aria-current={size === option.value ? "true" : undefined}
-              className="card-size-option"
-              key={option.value}
-              onClick={() => selectSize(option.value)}
-              role="menuitem"
-              type="button"
-            >
-              {option.label}
-            </button>
+            <li key={option.value}>
+              <button
+                aria-pressed={size === option.value}
+                className="card-size-option"
+                onClick={() => selectSize(option.value)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       ) : null}
     </div>
   );

@@ -101,11 +101,16 @@
   left: 0;
   display: grid;
   min-width: 116px;
+  margin: 0;
   padding: 4px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
   background: var(--surface-overlay);
   box-shadow: 0 6px 16px rgb(8 20 29 / 18%);
+}
+
+.card-size-options li {
+  list-style: none;
 }
 
 .card-size-option {
@@ -118,7 +123,7 @@
 }
 
 .card-size-option:hover,
-.card-size-option[aria-checked="true"] {
+.card-size-option[aria-pressed="true"] {
   background: var(--surface-page);
 }
 
