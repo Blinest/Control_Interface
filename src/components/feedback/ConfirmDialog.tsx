@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent } from "react";
 import "./feedback.css";
 
 export interface ConfirmDialogProps {
@@ -24,12 +24,44 @@ export function ConfirmDialog({
   const detailsId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      if (!wasOpenRef.current) {
+        triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      }
+      (level === "warning" ? confirmRef : cancelRef).current?.focus();
+    } else if (wasOpenRef.current) {
+      triggerRef.current?.focus();
+      triggerRef.current = null;
+    }
 
-    (level === "warning" ? confirmRef : cancelRef).current?.focus();
+    wasOpenRef.current = open;
   }, [level, open]);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onCancel();
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+
+    const cancel = cancelRef.current;
+    const confirm = confirmRef.current;
+    if (!cancel || !confirm) return;
+
+    if (event.shiftKey && document.activeElement === cancel) {
+      event.preventDefault();
+      confirm.focus();
+    } else if (!event.shiftKey && document.activeElement === confirm) {
+      event.preventDefault();
+      cancel.focus();
+    }
+  };
 
   if (!open) return null;
 
@@ -40,6 +72,7 @@ export function ConfirmDialog({
         aria-labelledby={titleId}
         aria-modal="true"
         className={`confirm-dialog confirm-dialog-${level}`}
+        onKeyDown={handleKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
         role="alertdialog"
       >
