@@ -765,6 +765,7 @@ function AppController() {
     currentDeviceId,
     snapshot.runtimeDiagnostics.emergencyLatched,
     deviceStatuses,
+    connectedDevices.map((device) => device.deviceId),
   );
   const previousConfirmationSafetyContextRef = useRef(confirmationSafetyContext);
 
@@ -774,6 +775,7 @@ function AppController() {
     if (shouldInvalidateConfirmation(previousContext, confirmationSafetyContext)) safeCommand.cancel();
   }, [
     confirmationSafetyContext.aggregateEmergencyLatched,
+    confirmationSafetyContext.connectedDeviceTopology,
     confirmationSafetyContext.deviceLatchState,
     confirmationSafetyContext.selectedDeviceId,
     safeCommand.cancel,

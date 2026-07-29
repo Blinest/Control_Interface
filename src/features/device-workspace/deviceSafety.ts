@@ -4,6 +4,7 @@ export interface ConfirmationSafetyContext {
   selectedDeviceId: string;
   aggregateEmergencyLatched: boolean;
   deviceLatchState: string;
+  connectedDeviceTopology: string;
 }
 
 export function getLatchedDeviceIds(deviceStatuses: DeviceLatchStatuses): string[] {
@@ -29,13 +30,19 @@ export function createConfirmationSafetyContext(
   selectedDeviceId: string,
   aggregateEmergencyLatched: boolean,
   deviceStatuses: DeviceLatchStatuses,
+  connectedDeviceIds: readonly string[] = [],
 ): ConfirmationSafetyContext {
   const deviceLatchState = Object.entries(deviceStatuses)
     .sort(([leftId], [rightId]) => leftId.localeCompare(rightId))
     .map(([deviceId, status]) => `${deviceId}:${status.emergencyLatched ? "1" : "0"}`)
     .join("|");
 
-  return { selectedDeviceId, aggregateEmergencyLatched, deviceLatchState };
+  return {
+    selectedDeviceId,
+    aggregateEmergencyLatched,
+    deviceLatchState,
+    connectedDeviceTopology: JSON.stringify(connectedDeviceIds),
+  };
 }
 
 export function shouldInvalidateConfirmation(
@@ -44,5 +51,6 @@ export function shouldInvalidateConfirmation(
 ): boolean {
   return previous.selectedDeviceId !== current.selectedDeviceId
     || previous.aggregateEmergencyLatched !== current.aggregateEmergencyLatched
-    || previous.deviceLatchState !== current.deviceLatchState;
+    || previous.deviceLatchState !== current.deviceLatchState
+    || previous.connectedDeviceTopology !== current.connectedDeviceTopology;
 }

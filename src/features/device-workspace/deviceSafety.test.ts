@@ -63,4 +63,57 @@ describe("confirmation invalidation", () => {
 
     expect(shouldInvalidateConfirmation(previous, current)).toBe(false);
   });
+
+  it("invalidates when connected topology changes without runtime statuses", () => {
+    const previous = createConfirmationSafetyContext(
+      "simulator:default",
+      false,
+      {},
+      ["simulator:default"],
+    );
+    const current = createConfirmationSafetyContext(
+      "simulator:default",
+      false,
+      {},
+      ["simulator:default", "serial:COM7"],
+    );
+
+    expect(shouldInvalidateConfirmation(previous, current)).toBe(true);
+  });
+
+  it("invalidates when connected device order changes", () => {
+    const deviceStatuses = statuses({ "serial:COM3": false });
+    const previous = createConfirmationSafetyContext(
+      "serial:COM3",
+      false,
+      deviceStatuses,
+      ["simulator:default", "serial:COM3"],
+    );
+    const current = createConfirmationSafetyContext(
+      "serial:COM3",
+      false,
+      deviceStatuses,
+      ["serial:COM3", "simulator:default"],
+    );
+
+    expect(shouldInvalidateConfirmation(previous, current)).toBe(true);
+  });
+
+  it("keeps a pending confirmation for equivalent connected topology objects", () => {
+    const deviceStatuses = statuses({ "serial:COM3": false });
+    const previous = createConfirmationSafetyContext(
+      "serial:COM3",
+      false,
+      deviceStatuses,
+      ["simulator:default", "serial:COM3"],
+    );
+    const current = createConfirmationSafetyContext(
+      "serial:COM3",
+      false,
+      { ...deviceStatuses },
+      ["simulator:default", "serial:COM3"],
+    );
+
+    expect(shouldInvalidateConfirmation(previous, current)).toBe(false);
+  });
 });
