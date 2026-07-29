@@ -5,32 +5,28 @@ import {
   Activity,
   AlertTriangle,
   ArrowRightLeft,
-  BarChart3,
   Cable,
   CheckCircle2,
-  ChevronRight,
   Cpu,
   Database,
   Eye,
   Fingerprint,
-  LayoutDashboard,
   ListChecks,
   Logs,
-  MoonStar,
   PauseCircle,
   Play,
   RefreshCw,
   Save,
   Settings2,
   SlidersHorizontal,
-  SquareTerminal,
   SunMedium,
   Table2,
   Wifi,
 } from "lucide-react";
-import { HashRouter, NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { HashRouter } from "react-router-dom";
 
-import "./App.css";
+import { AppRouter } from "./app/AppRouter";
+import { AppShell } from "./app/AppShell";
 import ChartsPage from "./charts";
 import ConnectDialog from "./components/ConnectDialog";
 import DeviceCard from "./components/DeviceCard";
@@ -47,7 +43,6 @@ import type {
   LogLevel,
   LegacyMigrationPreview,
   LegacyMigrationReport,
-  PageKey,
   PlaybackStatus,
   RecorderStatus,
   Role,
@@ -57,57 +52,6 @@ import type {
   ThemeMode,
   UserAccount,
 } from "./softuiTypes";
-
-type NavItem = {
-  key: PageKey;
-  path: string;
-  icon: LucideIcon;
-  title: string;
-  subtitle: string;
-};
-
-const navItems: NavItem[] = [
-  { key: "Dashboard", path: "/dashboard", icon: LayoutDashboard, title: "总览", subtitle: "运行概况" },
-  { key: "Workspace", path: "/workspace", icon: Cpu, title: "设备工作区", subtitle: "串口 / 状态 / 控制" },
-  { key: "Charts", path: "/charts", icon: BarChart3, title: "曲线分析", subtitle: "实时与历史曲线" },
-  { key: "Sessions", path: "/sessions", icon: Database, title: "会话与记录", subtitle: "录制与导出" },
-  { key: "Logs", path: "/logs", icon: Logs, title: "日志管理", subtitle: "诊断与审计" },
-  { key: "Settings", path: "/settings", icon: Settings2, title: "设置", subtitle: "路径与主题" },
-];
-
-const pageDescriptions: Record<PageKey, string> = {
-  Dashboard: "查看设备、采样、会话和最近异常。",
-  Workspace: "把串口、设备状态、实时表格、控制和回放放到同一工作区。",
-  Charts: "查看电机、传感器和弯曲曲线。",
-  Sessions: "录制实验数据、管理会话和导出 CSV。",
-  Logs: "筛选运行日志和审计记录。",
-  Settings: "调整主题、路径和布局偏好。",
-  Model: "打开 3D 窗口壳子，后续再接模型内容。",
-};
-
-const pageTitles: Record<PageKey, string> = {
-  Dashboard: "总览",
-  Workspace: "设备工作区",
-  Charts: "曲线分析",
-  Sessions: "会话与记录",
-  Logs: "日志管理",
-  Settings: "设置",
-  Model: "3D 窗口",
-};
-
-function routeToPage(pathname: string): PageKey {
-  if (pathname.startsWith("/workspace")) return "Workspace";
-  if (pathname.startsWith("/connection")) return "Workspace";
-  if (pathname.startsWith("/live-table")) return "Workspace";
-  if (pathname.startsWith("/charts")) return "Charts";
-  if (pathname.startsWith("/model")) return "Model";
-  if (pathname.startsWith("/calibration")) return "Workspace";
-  if (pathname.startsWith("/playback")) return "Workspace";
-  if (pathname.startsWith("/logs")) return "Logs";
-  if (pathname.startsWith("/sessions")) return "Sessions";
-  if (pathname.startsWith("/settings")) return "Settings";
-  return "Dashboard";
-}
 
 function isoShort(ms: number) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -149,16 +93,6 @@ function toneForLevel(level: LogLevel) {
 
 function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "ok" | "warn" | "error" | "info" }) {
   return <span className={`badge ${tone}`}>{children}</span>;
-}
-
-function StatCard({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone: "blue" | "green" | "amber" | "neutral" }) {
-  return (
-    <article className={`stat-card ${tone}`}>
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
-      {hint ? <div className="stat-hint">{hint}</div> : null}
-    </article>
-  );
 }
 
 function Panel({
@@ -779,9 +713,7 @@ function WorkspacePage({
   );
 }
 
-function AppShell() {
-  const location = useLocation();
-  const currentPage = routeToPage(location.pathname);
+function AppController() {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot>(makeFallbackSnapshot);
   const [serialPorts, setSerialPorts] = useState<SerialPortDescriptor[]>([]);
   const [serialPortsError, setSerialPortsError] = useState<string | null>(null);
@@ -800,7 +732,6 @@ function AppShell() {
   const [migrationReport, setMigrationReport] = useState<LegacyMigrationReport | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const fetchSnapshot = useCallback(async (mode: "bootstrap_state" | "tick_snapshot" = "bootstrap_state") => {
     try {
@@ -815,6 +746,10 @@ function AppShell() {
   useEffect(() => {
     void fetchSnapshot("bootstrap_state");
   }, [fetchSnapshot]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = snapshot.theme;
+  }, [snapshot.theme]);
 
   const refreshSerialPorts = useCallback(async () => {
     try {
@@ -929,16 +864,6 @@ function AppShell() {
       setAuthBusy(false);
     }
   }, [applyAuthSession, fetchSnapshot, refreshUsers]);
-
-  const logoutUser = useCallback(async () => {
-    try {
-      const session = await invoke<AuthSession>("logout");
-      applyAuthSession(session);
-      setUsers([]);
-    } catch (invokeError) {
-      console.error(invokeError);
-    }
-  }, [applyAuthSession]);
 
   const createUserAccount = useCallback(async (username: string, password: string, role: Role) => {
     await invoke<UserAccount>("create_user", {
@@ -1258,7 +1183,6 @@ function AppShell() {
     }
   }, [snapshot.calibration.targetAngles, snapshot.live.selectedDeviceId]);
 
-  const statusTone = snapshot.connection.state === "ready" ? "ok" : snapshot.connection.state === "error" ? "error" : "warn";
   if (!snapshot.authSession.authenticated || snapshot.authSession.mustChangePassword) {
     return (
       <LoginPage
@@ -1273,116 +1197,20 @@ function AppShell() {
   }
 
   return (
-    <div className={`shell theme-${snapshot.theme} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">
-            <Fingerprint size={18} />
-          </div>
-          <div className="brand-copy">
-            <div className="brand-title">SoftUI</div>
-            <div className="brand-subtitle">桌面控制台</div>
-          </div>
-          <button
-            type="button"
-            className="sidebar-toggle"
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            title={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
-            aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
-
-        <nav className="nav">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink key={item.path} to={item.path} title={item.title} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
-                <span className="nav-icon">
-                  <Icon size={16} />
-                </span>
-                <span className="nav-text">
-                  <span className="nav-title">{item.title}</span>
-                  <span className="nav-subtitle">{item.subtitle}</span>
-                </span>
-                <ChevronRight size={14} />
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        <section className="sidebar-card">
-          <div className="section-label">运行状态</div>
-          <div className="side-stat">
-            <Badge tone={statusTone}>{snapshot.connection.state}</Badge>
-            <span>{snapshot.connection.activeProfileName}</span>
-          </div>
-          <div className="side-stat">
-            <Activity size={16} />
-            <span>采样 {snapshot.dashboard.sampleRateHz} Hz</span>
-          </div>
-          <div className="side-stat">
-            <SquareTerminal size={16} />
-            <span>{snapshot.appInfo.backend}</span>
-          </div>
-        </section>
-      </aside>
-
-      <main className={`workspace ${currentPage === "Dashboard" ? "with-summary" : "without-summary"}`}>
-        <header className="topbar">
-          <div className="headline">
-            <div className="section-label">SoftUI</div>
-            <h1>{pageTitles[currentPage]}</h1>
-            <p>{pageDescriptions[currentPage]}</p>
-          </div>
-
-          <div className="actions">
-            <button type="button" className="ghost-btn" onClick={toggleTheme}>
-              {snapshot.theme === "dark" ? <SunMedium size={16} /> : <MoonStar size={16} />}
-              <span>{snapshot.theme === "dark" ? "浅色" : "深色"}</span>
-            </button>
-            <button type="button" className="ghost-btn" onClick={() => void fetchSnapshot("tick_snapshot")}>
-              <RefreshCw size={16} />
-              <span>刷新</span>
-            </button>
-            <button type="button" className={`primary-btn ${snapshot.connection.state === "ready" ? "is-live" : "is-idle"}`} onClick={toggleConnection}>
-              <Wifi size={16} />
-              <span>{snapshot.connection.state === "ready" ? "断开" : "连接"}</span>
-            </button>
-            <button type="button" className="ghost-btn">
-              <Save size={16} />
-              <span>保存布局</span>
-            </button>
-            <button type="button" className={`primary-btn ${recorderStatus.active ? "is-recording" : "is-idle"}`} onClick={toggleRecording}>
-              <Activity size={16} />
-              <span>{recorderStatus.active ? `⏹ ${recorderStatus.frameCount}帧 ${recorderStatus.elapsedSecs}s` : "录制"}</span>
-            </button>
-            <button type="button" className="ghost-btn" onClick={logoutUser}>
-              <Fingerprint size={16} />
-              <span>退出 {snapshot.authSession.username}</span>
-            </button>
-            <div className="action-menu" aria-label="secondary actions">
-              <button type="button" className="ghost-btn icon-btn" title="保存布局">
-                <Save size={16} />
-              </button>
-              <button type="button" className="ghost-btn account-btn" onClick={logoutUser} title={`退出 ${snapshot.authSession.username}`}>
-                <Fingerprint size={16} />
-                <span>{snapshot.authSession.username}</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {currentPage === "Dashboard" ? (
-          <section className="summary-grid">
-            <StatCard label="设备" value={`${snapshot.dashboard.deviceCount}`} hint={`${snapshot.dashboard.connectedDevices} 台在线`} tone="blue" />
-            <StatCard label="会话" value={snapshot.dashboard.currentSession} hint="当前会话" tone="green" />
-            <StatCard label="采样" value={`${snapshot.dashboard.sampleRateHz} Hz`} hint={`帧率 ${snapshot.dashboard.frameRateHz} fps`} tone="amber" />
-            <StatCard label="最新错误" value={snapshot.dashboard.lastError ?? "无"} hint={snapshot.connection.lastMessage} tone="neutral" />
-          </section>
-        ) : null}
-
+    <div className={`theme-${snapshot.theme}`}>
+      <AppShell
+        currentDeviceLabel={snapshot.live.selectedDeviceId || "未选择设备"}
+        connectionLabel={snapshot.connection.state}
+        enabled={snapshot.connection.state === "enabled"}
+        recording={recorderStatus.active}
+        emergencyLatched={snapshot.runtimeDiagnostics.emergencyLatched}
+        footerItems={[
+          `采样 ${snapshot.dashboard.sampleRateHz} Hz`,
+          `帧率 ${snapshot.dashboard.frameRateHz} fps`,
+          `命令队列 ${snapshot.runtimeDiagnostics.pendingCommands}`,
+        ]}
+        onEmergencyStop={() => void submitSystemControl("emergencyStop")}
+      >
         {playbackStatus?.active ? (
           <PlaybackBar
             status={playbackStatus}
@@ -1394,88 +1222,69 @@ function AppShell() {
             onSetSpeed={playbackSetSpeed}
           />
         ) : null}
-
-        <div className="page-body">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage snapshot={snapshot} />} />
-            <Route
-              path="/workspace"
-              element={
-                <WorkspacePage
-                  snapshot={snapshot}
-                  serialPorts={serialPorts}
-                  serialPortsError={serialPortsError}
-                  connectedDevices={connectedDevices}
-                  deviceStatuses={deviceStatuses}
-                  connectionError={connectionError}
-                  onOpenConnectDialog={() => { setConnectionError(null); setConnectDialogOpen(true); }}
-                  onDisconnectDevice={handleDisconnectDevice}
-                  onRefreshSerialPorts={refreshSerialPorts}
-                  onSystemControl={submitSystemControl}
-                  onSendMotor={sendMotorCommand}
-                  onWorkspaceCommand={submitWorkspaceCommand}
-                />
-              }
+        <AppRouter
+          dashboard={<DashboardPage snapshot={snapshot} />}
+          workspace={
+            <WorkspacePage
+              snapshot={snapshot}
+              serialPorts={serialPorts}
+              serialPortsError={serialPortsError}
+              connectedDevices={connectedDevices}
+              deviceStatuses={deviceStatuses}
+              connectionError={connectionError}
+              onOpenConnectDialog={toggleConnection}
+              onDisconnectDevice={handleDisconnectDevice}
+              onRefreshSerialPorts={refreshSerialPorts}
+              onSystemControl={submitSystemControl}
+              onSendMotor={sendMotorCommand}
+              onWorkspaceCommand={submitWorkspaceCommand}
             />
-            <Route path="/connection" element={<Navigate to="/workspace" replace />} />
-            <Route path="/live-table" element={<Navigate to="/workspace" replace />} />
-            <Route path="/charts" element={<ChartsPage snapshot={snapshot} />} />
-            <Route path="/sessions" element={
-              <SessionsPage
-                sessions={sessions}
-                recorderStatus={recorderStatus}
-                onToggleRecording={toggleRecording}
-                onPauseRecording={pauseRecording}
-                onResumeRecording={resumeRecording}
-                onDeleteSession={deleteSession}
-                onRenameSession={renameSession}
-                onExportCsv={exportCsv}
-                onLoadPlayback={loadPlayback}
-              />
-            } />
-            <Route path="/model" element={<Navigate to="/workspace" replace />} />
-            <Route path="/calibration" element={<Navigate to="/workspace" replace />} />
-            <Route path="/playback" element={<Navigate to="/workspace" replace />} />
-            <Route path="/logs" element={<LogsPageV3 snapshot={snapshot} />} />
-            <Route
-              path="/settings"
-              element={
-                <SettingsPageV2
-                  snapshot={snapshot}
-                  users={users}
-                  diagnosticsPath={diagnosticsPath}
-                  migrationSource={migrationSource}
-                  migrationPreview={migrationPreview}
-                  migrationReport={migrationReport}
-                  onToggleTheme={toggleTheme}
-                  onExportDiagnostics={exportDiagnostics}
-                  onMigrationSourceChange={setMigrationSource}
-                  onPreviewMigration={previewMigration}
-                  onRunMigration={runMigration}
-                  onCreateUser={createUserAccount}
-                  onResetUserPassword={resetUserPassword}
-                  onSetUserDisabled={setUserDisabled}
-                />
-              }
+          }
+          charts={<ChartsPage snapshot={snapshot} />}
+          sessions={
+            <SessionsPage
+              sessions={sessions}
+              recorderStatus={recorderStatus}
+              onToggleRecording={toggleRecording}
+              onPauseRecording={pauseRecording}
+              onResumeRecording={resumeRecording}
+              onDeleteSession={deleteSession}
+              onRenameSession={renameSession}
+              onExportCsv={exportCsv}
+              onLoadPlayback={loadPlayback}
             />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-
-          {/* Connect Dialog */}
-          <ConnectDialog
-            open={connectDialogOpen}
-            ports={serialPorts}
-            profiles={connectionProfiles}
-            onConnect={handleConnectDevice}
-            onSaveProfile={handleSaveProfile}
-            onDeleteProfile={handleDeleteProfile}
-            onRefreshPorts={refreshSerialPorts}
-            onClose={() => setConnectDialogOpen(false)}
-          />
-        </div>
-
-      </main>
+          }
+          logs={<LogsPageV3 snapshot={snapshot} />}
+          settings={
+            <SettingsPageV2
+              snapshot={snapshot}
+              users={users}
+              diagnosticsPath={diagnosticsPath}
+              migrationSource={migrationSource}
+              migrationPreview={migrationPreview}
+              migrationReport={migrationReport}
+              onToggleTheme={toggleTheme}
+              onExportDiagnostics={exportDiagnostics}
+              onMigrationSourceChange={setMigrationSource}
+              onPreviewMigration={previewMigration}
+              onRunMigration={runMigration}
+              onCreateUser={createUserAccount}
+              onResetUserPassword={resetUserPassword}
+              onSetUserDisabled={setUserDisabled}
+            />
+          }
+        />
+        <ConnectDialog
+          open={connectDialogOpen}
+          ports={serialPorts}
+          profiles={connectionProfiles}
+          onConnect={handleConnectDevice}
+          onSaveProfile={handleSaveProfile}
+          onDeleteProfile={handleDeleteProfile}
+          onRefreshPorts={refreshSerialPorts}
+          onClose={() => setConnectDialogOpen(false)}
+        />
+      </AppShell>
     </div>
   );
 }
@@ -2187,7 +1996,7 @@ function SettingsPageV2({
 function App() {
   return (
     <HashRouter>
-      <AppShell />
+      <AppController />
     </HashRouter>
   );
 }

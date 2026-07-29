@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/App.css", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const fallbackSnapshot = readFileSync(new URL("../src/state/fallbackSnapshot.ts", import.meta.url), "utf8");
 
 assert.match(
   css,
@@ -17,7 +18,7 @@ assert.match(
 );
 
 assert.match(
-  app,
+  fallbackSnapshot,
   /localStorage\.getItem\("softui:theme"\)/,
   "initial snapshot should read cached theme before backend bootstrap to avoid startup background flicker",
 );
