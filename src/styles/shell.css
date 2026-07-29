@@ -97,6 +97,13 @@
 
 .global-status-items { overflow: hidden; }
 
+.global-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .global-status-device,
 .global-status-connection {
   overflow: hidden;
@@ -131,6 +138,24 @@
   background: var(--action-danger);
   color: var(--action-danger-text);
   font-weight: 700;
+}
+
+.global-account-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(220px, 28vw);
+  padding: 0 8px;
+  border-color: var(--border-default);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+
+.global-account-control span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-content {

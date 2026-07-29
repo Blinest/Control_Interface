@@ -24,4 +24,30 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "紧急停止" })).toBeVisible();
     expect(screen.getByText("页面内容")).toBeVisible();
   });
+
+  it("calls logout from the authenticated account control", () => {
+    const onLogout = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <AppShell
+          currentDeviceLabel="STM32-A"
+          connectionLabel="COM3 Ready"
+          currentUserLabel="operator"
+          enabled={false}
+          emergencyLatched={false}
+          footerItems={[]}
+          onEmergencyStop={vi.fn()}
+          onLogout={onLogout}
+          recording={false}
+        >
+          <div>页面内容</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+
+    screen.getByRole("button", { name: "退出 operator" }).click();
+
+    expect(onLogout).toHaveBeenCalledOnce();
+  });
 });

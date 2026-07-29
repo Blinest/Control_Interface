@@ -1,19 +1,25 @@
+import { LogOut } from "lucide-react";
+
 interface GlobalStatusBarProps {
   currentDeviceLabel: string;
   connectionLabel: string;
+  currentUserLabel?: string;
   enabled: boolean;
   recording: boolean;
   emergencyLatched: boolean;
   onEmergencyStop: () => void;
+  onLogout?: () => void;
 }
 
 export function GlobalStatusBar({
   currentDeviceLabel,
   connectionLabel,
+  currentUserLabel,
   enabled,
   recording,
   emergencyLatched,
   onEmergencyStop,
+  onLogout,
 }: GlobalStatusBarProps) {
   return (
     <header className="global-status-bar">
@@ -28,14 +34,27 @@ export function GlobalStatusBar({
         </span>
         {emergencyLatched ? <span className="status-indicator is-emergency">急停锁定</span> : null}
       </div>
-      <button
-        aria-label="紧急停止"
-        className="emergency-stop-button"
-        onClick={onEmergencyStop}
-        type="button"
-      >
-        紧急停止
-      </button>
+      <div className="global-status-actions">
+        {currentUserLabel && onLogout ? (
+          <button
+            aria-label={`退出 ${currentUserLabel}`}
+            className="global-account-control"
+            onClick={onLogout}
+            type="button"
+          >
+            <LogOut size={16} />
+            <span>{currentUserLabel}</span>
+          </button>
+        ) : null}
+        <button
+          aria-label="紧急停止"
+          className="emergency-stop-button"
+          onClick={onEmergencyStop}
+          type="button"
+        >
+          紧急停止
+        </button>
+      </div>
     </header>
   );
 }

@@ -865,6 +865,16 @@ function AppController() {
     }
   }, [applyAuthSession, fetchSnapshot, refreshUsers]);
 
+  const logoutUser = useCallback(async () => {
+    try {
+      const session = await invoke<AuthSession>("logout");
+      applyAuthSession(session);
+      setUsers([]);
+    } catch (invokeError) {
+      console.error(invokeError);
+    }
+  }, [applyAuthSession]);
+
   const createUserAccount = useCallback(async (username: string, password: string, role: Role) => {
     await invoke<UserAccount>("create_user", {
       request: { username: username.trim(), password, role },
@@ -1201,6 +1211,7 @@ function AppController() {
       <AppShell
         currentDeviceLabel={snapshot.live.selectedDeviceId || "未选择设备"}
         connectionLabel={snapshot.connection.state}
+        currentUserLabel={snapshot.authSession.username}
         enabled={snapshot.connection.state === "enabled"}
         recording={recorderStatus.active}
         emergencyLatched={snapshot.runtimeDiagnostics.emergencyLatched}
@@ -1210,6 +1221,7 @@ function AppController() {
           `命令队列 ${snapshot.runtimeDiagnostics.pendingCommands}`,
         ]}
         onEmergencyStop={() => void submitSystemControl("emergencyStop")}
+        onLogout={() => void logoutUser()}
       >
         {playbackStatus?.active ? (
           <PlaybackBar
