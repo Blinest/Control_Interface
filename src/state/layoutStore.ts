@@ -38,7 +38,13 @@ const monitorCardIds = new Set<MonitorCardId>([
 
 const cardSizes = new Set<CardSize>(["1x1", "2x1", "1x2", "2x2"]);
 
-export const defaultDashboardLayout: PageLayout = {
+function freezeLayout(layout: PageLayout): PageLayout {
+  for (const card of layout.cards) Object.freeze(card);
+  Object.freeze(layout.cards);
+  return Object.freeze(layout);
+}
+
+export const defaultDashboardLayout: PageLayout = freezeLayout({
   schemaVersion: 1,
   cards: [
     { id: "connection", size: "1x1", visible: true },
@@ -49,9 +55,9 @@ export const defaultDashboardLayout: PageLayout = {
     { id: "recentSessions", size: "2x1", visible: true },
     { id: "recentEvents", size: "2x1", visible: true },
   ],
-};
+});
 
-export const defaultWorkspaceMonitorLayout: PageLayout = {
+export const defaultWorkspaceMonitorLayout: PageLayout = freezeLayout({
   schemaVersion: 1,
   cards: [
     { id: "liveChart", size: "2x2", visible: true },
@@ -62,7 +68,7 @@ export const defaultWorkspaceMonitorLayout: PageLayout = {
     { id: "sensorSummary", size: "2x1", visible: true },
     { id: "recentAlerts", size: "2x1", visible: true },
   ],
-};
+});
 
 function defaultLayoutFor(page: LayoutPage): PageLayout {
   return page === "dashboard" ? defaultDashboardLayout : defaultWorkspaceMonitorLayout;
@@ -99,6 +105,10 @@ export function validateLayout(value: unknown, page: LayoutPage = "dashboard"): 
       return cloneLayout(defaultLayoutFor(page));
     }
     cardIds.add(card.id);
+  }
+
+  if (page === "dashboard" && !cardIds.has("connection")) {
+    return cloneLayout(defaultLayoutFor(page));
   }
 
   return { schemaVersion: 1, cards: layout.cards.map((card) => ({ ...card })) };

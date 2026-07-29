@@ -25,6 +25,25 @@ describe("layoutStore", () => {
     expect(result).toEqual(defaultDashboardLayout);
   });
 
+  it("rejects dashboard layouts that omit the connection card", () => {
+    const result = validateLayout({
+      schemaVersion: 1,
+      cards: [{ id: "sampling", size: "1x1", visible: true }],
+    });
+
+    expect(result).toEqual(defaultDashboardLayout);
+  });
+
+  it("prevents imported defaults from changing fallback layouts", () => {
+    expect(() => {
+      defaultDashboardLayout.cards[0].visible = false;
+    }).toThrow(TypeError);
+
+    expect(validateLayout({ schemaVersion: 1, cards: [{ id: "unsafe", size: "9x9", visible: true }] })).toEqual(
+      defaultDashboardLayout,
+    );
+  });
+
   it("stores layouts by user and page", () => {
     saveLayout("admin", "dashboard", defaultDashboardLayout);
     expect(loadLayout("admin", "dashboard")).toEqual(defaultDashboardLayout);
