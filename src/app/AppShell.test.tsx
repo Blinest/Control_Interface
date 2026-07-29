@@ -5,6 +5,8 @@ import { AppShell } from "./AppShell";
 
 describe("AppShell", () => {
   it("keeps current device and emergency stop visible", () => {
+    const onEmergencyStop = vi.fn();
+
     render(
       <MemoryRouter>
         <AppShell
@@ -14,14 +16,17 @@ describe("AppShell", () => {
           recording={false}
           emergencyLatched={false}
           footerItems={["采样 100 Hz", "命令队列 0"]}
-          onEmergencyStop={vi.fn()}
+          onEmergencyStop={onEmergencyStop}
         >
           <div>页面内容</div>
         </AppShell>
       </MemoryRouter>,
     );
     expect(screen.getByText("STM32-A")).toBeVisible();
-    expect(screen.getByRole("button", { name: "紧急停止" })).toBeVisible();
+    const emergencyStop = screen.getByRole("button", { name: "紧急停止" });
+    expect(emergencyStop).toBeVisible();
+    emergencyStop.click();
+    expect(onEmergencyStop).toHaveBeenCalledOnce();
     expect(screen.getByText("页面内容")).toBeVisible();
   });
 

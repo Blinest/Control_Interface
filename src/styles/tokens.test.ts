@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
+import shell from "./shell.css?raw";
 import tokens from "./tokens.css?raw";
 
-const lightTokens = tokens.match(/:root,\s*:root\[data-theme="light"\]\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+const themeTokens = {
+  light: tokens.match(/:root,\s*:root\[data-theme="light"\]\s*\{([\s\S]*?)\}/)?.[1] ?? "",
+  dark: tokens.match(/:root\[data-theme="dark"\]\s*\{([\s\S]*?)\}/)?.[1] ?? "",
+};
 
-const tokenValue = (name: string): string => {
-  const value = lightTokens.match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, "i"))?.[1];
-  if (!value) throw new Error(`Missing ${name} light token`);
+const tokenValue = (theme: keyof typeof themeTokens, name: string): string => {
+  const value = themeTokens[theme].match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, "i"))?.[1];
+  if (!value) throw new Error(`Missing ${name} ${theme} token`);
   return value;
 };
 
@@ -23,13 +27,25 @@ const contrast = (foreground: string, background: string): number => {
   return (lighter + 0.05) / (darker + 0.05);
 };
 
-describe("light semantic token contrast", () => {
+describe("semantic token contrast", () => {
   it("keeps muted text readable on page and panel surfaces", () => {
-    expect(contrast(tokenValue("--text-muted"), "#edf2f6")).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(tokenValue("--text-muted"), "#ffffff")).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokenValue("light", "--text-muted"), "#edf2f6")).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokenValue("light", "--text-muted"), "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });
 
   it("keeps disabled text readable on its disabled background", () => {
-    expect(contrast(tokenValue("--action-disabled-text"), "#dce4eb")).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokenValue("light", "--action-disabled-text"), "#dce4eb")).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each(["light", "dark"] as const)("keeps sidebar text readable in %s mode", (theme) => {
+    const sidebar = tokenValue(theme, "--surface-sidebar");
+    expect(contrast(tokenValue(theme, "--text-sidebar"), sidebar)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokenValue(theme, "--text-sidebar-muted"), sidebar)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("maps sidebar brand, navigation, and group labels to sidebar semantic tokens", () => {
+    expect(shell).toMatch(/\.app-sidebar\s*\{[^}]*color:\s*var\(--text-sidebar\)/);
+    expect(shell).toMatch(/\.sidebar-nav-link\s*\{[^}]*color:\s*var\(--text-sidebar\)/);
+    expect(shell).toMatch(/\.sidebar-nav-group h2\s*\{[^}]*color:\s*var\(--text-sidebar-muted\)/);
   });
 });

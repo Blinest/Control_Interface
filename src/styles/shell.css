@@ -23,7 +23,7 @@
   flex-direction: column;
   background: var(--surface-sidebar);
   border-right: 1px solid var(--border-default);
-  color: var(--text-inverse);
+  color: var(--text-sidebar);
 }
 
 .sidebar-brand {
@@ -48,7 +48,7 @@
 
 .sidebar-nav-group h2 {
   margin: 0 8px 4px;
-  color: var(--text-secondary);
+  color: var(--text-sidebar-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -67,7 +67,7 @@
   padding: 0 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-card);
-  color: var(--text-inverse);
+  color: var(--text-sidebar);
 }
 
 .sidebar-nav-link:hover,

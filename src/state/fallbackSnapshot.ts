@@ -6,6 +6,8 @@ import type {
   SensorState,
   ThemeMode,
 } from "../softuiTypes";
+import { readThemePreference, resolveTheme } from "./themeStore";
+
 function makeDefaultLogs(): LogEntry[] {
   const now = Date.now();
   return [
@@ -87,8 +89,15 @@ function makeFallbackFrame(sequence: number, receivedAtMs: number, bend1: number
 }
 
 function getCachedTheme(): ThemeMode {
+  if (typeof document !== "undefined") {
+    const preRenderedTheme = document.documentElement.dataset.theme;
+    if (preRenderedTheme === "light" || preRenderedTheme === "dark") return preRenderedTheme;
+  }
   if (typeof window === "undefined") return "dark";
-  return localStorage.getItem("softui:theme") === "light" ? "light" : "dark";
+  return resolveTheme(
+    readThemePreference("anonymous"),
+    window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
 }
 
 export function makeFallbackSnapshot(): RuntimeSnapshot {

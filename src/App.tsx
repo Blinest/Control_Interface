@@ -32,6 +32,7 @@ import ConnectDialog from "./components/ConnectDialog";
 import DeviceCard from "./components/DeviceCard";
 import PlaybackBar from "./components/PlaybackBar";
 import { makeFallbackSnapshot } from "./state/fallbackSnapshot";
+import { applyTheme, readThemePreference, resolveTheme, writeThemePreference } from "./state/themeStore";
 import SessionsPage from "./pages/SessionsPage";
 import type {
   CalibrationStep,
@@ -76,6 +77,13 @@ function isoFull(ms: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+
+function resolveThemeForUser(username: string): ThemeMode {
+  return resolveTheme(
+    readThemePreference(username),
+    window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
 }
 
 function toneForLevel(level: LogLevel) {
@@ -736,8 +744,16 @@ function AppController() {
   const fetchSnapshot = useCallback(async (mode: "bootstrap_state" | "tick_snapshot" = "bootstrap_state") => {
     try {
       const next = await invoke<RuntimeSnapshot>(mode);
-      localStorage.setItem("softui:theme", next.theme);
-      setSnapshot(next);
+      setSnapshot((previous) => {
+        const theme = next.authSession.authenticated
+          ? resolveThemeForUser(next.authSession.username)
+          : previous.theme;
+        return {
+          ...next,
+          theme,
+          settings: { ...next.settings, theme },
+        };
+      });
     } catch (invokeError) {
       console.error(invokeError);
     }
@@ -748,7 +764,7 @@ function AppController() {
   }, [fetchSnapshot]);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = snapshot.theme;
+    applyTheme(snapshot.theme);
   }, [snapshot.theme]);
 
   const refreshSerialPorts = useCallback(async () => {
@@ -824,7 +840,14 @@ function AppController() {
   }, [refreshUsers, snapshot.authSession.username, snapshot.authSession.role]);
 
   const applyAuthSession = useCallback((session: AuthSession) => {
-    setSnapshot((prev) => ({ ...prev, authSession: session }));
+    const theme = session.authenticated ? resolveThemeForUser(session.username) : undefined;
+    if (theme) applyTheme(theme);
+    setSnapshot((prev) => ({
+      ...prev,
+      theme: theme ?? prev.theme,
+      settings: theme ? { ...prev.settings, theme } : prev.settings,
+      authSession: session,
+    }));
   }, []);
 
   const loginUser = useCallback(async (username: string, password: string) => {
@@ -921,11 +944,14 @@ function AppController() {
 
   const toggleTheme = useCallback(async () => {
     const nextTheme: ThemeMode = snapshot.theme === "dark" ? "light" : "dark";
-    localStorage.setItem("softui:theme", nextTheme);
+    writeThemePreference(snapshot.authSession.username, nextTheme);
+    applyTheme(nextTheme);
     try {
       const next = await invoke<RuntimeSnapshot>("set_theme", { theme: nextTheme });
       setSnapshot((prev) => ({
         ...next,
+        theme: nextTheme,
+        settings: { ...next.settings, theme: nextTheme },
         authSession: next.authSession.authenticated ? next.authSession : prev.authSession,
       }));
     } catch {
@@ -935,7 +961,7 @@ function AppController() {
         settings: { ...prev.settings, theme: nextTheme },
       }));
     }
-  }, [snapshot.theme]);
+  }, [snapshot.authSession.username, snapshot.theme]);
 
   const exportDiagnostics = useCallback(async () => {
     try {

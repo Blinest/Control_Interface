@@ -3914,9 +3914,21 @@ button {
   background: rgba(255, 255, 255, 0.94);
 }
 
-.login-mark {
+.login-shell .login-mark {
+  display: grid;
+  place-items: center;
+  background: rgba(84, 148, 201, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  border-radius: 8px;
   width: 48px;
   height: 48px;
+  color: #e7eef7;
+}
+
+.login-shell.theme-light .login-mark {
+  background: rgba(35, 111, 168, 0.1);
+  border-color: rgba(35, 111, 168, 0.3);
+  color: #185f91;
 }
 
 .login-panel h1 {

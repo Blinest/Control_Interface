@@ -19,12 +19,30 @@ assert.match(
 
 assert.match(
   fallbackSnapshot,
-  /localStorage\.getItem\("softui:theme"\)/,
-  "initial snapshot should read cached theme before backend bootstrap to avoid startup background flicker",
+  /document\.documentElement\.dataset\.theme/,
+  "initial snapshot should preserve the pre-rendered theme before backend bootstrap",
 );
 
 assert.match(
   app,
-  /localStorage\.setItem\("softui:theme",\s*nextTheme\)/,
-  "theme toggles should persist the selected theme for the next startup frame",
+  /writeThemePreference\(snapshot\.authSession\.username,\s*nextTheme\)/,
+  "theme toggles should persist the selected theme for the authenticated user",
+);
+
+assert.match(
+  app,
+  /applyTheme\(nextTheme\)/,
+  "theme toggles should update the DOM theme and color scheme immediately",
+);
+
+assert.match(
+  app,
+  /onEmergencyStop=\{\(\) => void submitSystemControl\("emergencyStop"\)\}/,
+  "the global emergency stop must call the system-control command immediately",
+);
+
+assert.match(
+  css,
+  /\.login-shell\s+\.login-mark\s*\{[\s\S]*display:\s*grid[\s\S]*place-items:\s*center[\s\S]*background:[\s\S]*border:[\s\S]*border-radius:[\s\S]*width:[\s\S]*height:/,
+  "login mark styling must remain owned by the login shell",
 );

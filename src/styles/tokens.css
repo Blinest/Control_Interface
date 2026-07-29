@@ -8,6 +8,8 @@
   --text-secondary: #5c6d7b;
   --text-muted: #5f6e7a;
   --text-inverse: #f1f6fa;
+  --text-sidebar: #f1f6fa;
+  --text-sidebar-muted: #d1dee6;
   --border-default: #c9d5df;
   --border-subtle: #dce4ea;
   --focus-ring: #2f78b8;
@@ -35,6 +37,8 @@
   --text-secondary: #a5b2bd;
   --text-muted: #8796a2;
   --text-inverse: #08141d;
+  --text-sidebar: #e5edf3;
+  --text-sidebar-muted: #a5b2bd;
   --border-default: #45535e;
   --border-subtle: #34414a;
   --focus-ring: #58a8dc;
