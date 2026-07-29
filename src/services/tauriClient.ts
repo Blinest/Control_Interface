@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { RuntimeSnapshot } from "../softuiTypes";
+import { makeFallbackSnapshot } from "../state/fallbackSnapshot";
 
 export interface TauriClient {
   bootstrap(): Promise<RuntimeSnapshot>;
@@ -9,10 +10,22 @@ export interface TauriClient {
   invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
 }
 
+function hasTauriInvokeBridge() {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+function invokeOrFallback<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  if (hasTauriInvokeBridge()) return invoke<T>(command, args);
+  if (command === "bootstrap_state" || command === "tick_snapshot") {
+    return Promise.resolve(makeFallbackSnapshot() as T);
+  }
+  return Promise.reject(new Error(`Tauri command "${command}" is unavailable outside the desktop runtime.`));
+}
+
 export const tauriClient: TauriClient = {
-  bootstrap: () => invoke("bootstrap_state"),
-  tick: () => invoke("tick_snapshot"),
-  submitSystemControl: (deviceId, action) => invoke("submit_system_control", { request: { deviceId, action } }),
-  sendMotorCommand: (request) => invoke("send_motor_command", { request }),
-  invoke: (command, args) => invoke(command, args),
+  bootstrap: () => invokeOrFallback("bootstrap_state"),
+  tick: () => invokeOrFallback("tick_snapshot"),
+  submitSystemControl: (deviceId, action) => invokeOrFallback("submit_system_control", { request: { deviceId, action } }),
+  sendMotorCommand: (request) => invokeOrFallback("send_motor_command", { request }),
+  invoke: (command, args) => invokeOrFallback(command, args),
 };
