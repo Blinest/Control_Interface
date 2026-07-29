@@ -1,4 +1,4 @@
-import { LogOut } from "lucide-react";
+import { LogOut, OctagonX } from "lucide-react";
 
 interface GlobalStatusBarProps {
   currentDeviceLabel: string;
@@ -32,7 +32,7 @@ export function GlobalStatusBar({
         <span className={recording ? "status-indicator is-recording" : "status-indicator"}>
           {recording ? "录制中" : "未录制"}
         </span>
-        {emergencyLatched ? <span className="status-indicator is-emergency">急停锁定</span> : null}
+        {emergencyLatched ? <span aria-live="assertive" className="status-indicator is-emergency">急停锁定</span> : null}
       </div>
       <div className="global-status-actions">
         {currentUserLabel && onLogout ? (
@@ -48,11 +48,13 @@ export function GlobalStatusBar({
         ) : null}
         <button
           aria-label="紧急停止"
+          aria-pressed={emergencyLatched}
           className="emergency-stop-button"
           onClick={onEmergencyStop}
           type="button"
         >
-          紧急停止
+          <OctagonX aria-hidden="true" size={18} />
+          <span>紧急停止</span>
         </button>
       </div>
     </header>

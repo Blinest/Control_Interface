@@ -30,6 +30,9 @@ import ChartsPage from "./charts";
 import ConnectDialog from "./components/ConnectDialog";
 import DeviceCard from "./components/DeviceCard";
 import PlaybackBar from "./components/PlaybackBar";
+import { ConfirmDialog } from "./components/feedback/ConfirmDialog";
+import { useSafeCommand } from "./features/device-workspace/useSafeCommand";
+import type { CommandKind } from "./services/commandPolicy";
 import { tauriClient } from "./services/tauriClient";
 import { reconcileDeviceRefresh, selectCurrentDevice } from "./state/deviceSelectionStore";
 import { makeFallbackSnapshot } from "./state/fallbackSnapshot";
@@ -278,6 +281,7 @@ function WorkspacePage({
     angle2Deg: snapshot.calibration.targetAngles[1],
   });
   const latestFrame = snapshot.live.frames[0];
+  const motionLocked = snapshot.runtimeDiagnostics.emergencyLatched;
   const activeSession = snapshot.playback.sessions.find((session) => session.id === snapshot.playback.activeSessionId) ?? snapshot.playback.sessions[0];
   const progress = clamp((snapshot.playback.cursorMs / Math.max(snapshot.playback.durationMs, 1)) * 100, 0, 100);
   const motorRows = snapshot.live.frames.flatMap((frame) =>
@@ -363,13 +367,14 @@ function WorkspacePage({
                     <Wifi size={16} />
                     <span>连接新设备</span>
                   </button>
-                  <button type="button" className="ghost-btn full" onClick={() => onSystemControl(snapshot.connection.state === "ready" ? "disable" : "enable")}>
+                  <button
+                    type="button"
+                    className="ghost-btn full"
+                    disabled={motionLocked && snapshot.connection.state !== "ready"}
+                    onClick={() => onSystemControl(snapshot.connection.state === "ready" ? "disable" : "enable")}
+                  >
                     <CheckCircle2 size={16} />
                     <span>使能 / 失能</span>
-                  </button>
-                  <button type="button" className="ghost-btn full" onClick={() => onSystemControl("emergencyStop")}>
-                    <AlertTriangle size={16} />
-                    <span>紧急停止</span>
                   </button>
                 </div>
               </div>
@@ -494,6 +499,12 @@ function WorkspacePage({
       {pane === "control" ? (
         <div className="page-grid workspace-grid workspace-control-grid">
           <Panel title="系统状态" subtitle="工作区" icon={Activity} wide>
+            {motionLocked ? (
+              <div className="motion-lock-reason" role="status">
+                <AlertTriangle size={15} />
+                <span>急停已锁定，全部运动控制已禁用。</span>
+              </div>
+            ) : null}
             <div className="status-strip">
               <div className="status-strip-item">
                 <span className="status-strip-label">连接状态</span>
@@ -512,17 +523,13 @@ function WorkspacePage({
                 <strong>{snapshot.live.selectedDeviceId}</strong>
               </div>
               <div className="status-strip-actions">
-                <button type="button" className="ghost-btn" onClick={() => onSystemControl("enable")}>
+                <button type="button" className="ghost-btn" disabled={motionLocked} onClick={() => onSystemControl("enable")}>
                   <CheckCircle2 size={15} />
                   <span>使能</span>
                 </button>
                 <button type="button" className="ghost-btn" onClick={() => onSystemControl("disable")}>
                   <PauseCircle size={15} />
                   <span>失能</span>
-                </button>
-                <button type="button" className="ghost-btn" onClick={() => onSystemControl("emergencyStop")}>
-                  <AlertTriangle size={15} />
-                  <span>紧急停止</span>
                 </button>
               </div>
             </div>
@@ -550,7 +557,7 @@ function WorkspacePage({
                 <input type="number" min={0} step={0.1} value={motorDraft.accelerationMmPerSec2}
                   onChange={(event) => setMotorDraft((draft) => ({ ...draft, accelerationMmPerSec2: Number(event.target.value) }))} />
               </label>
-              <button type="button" className="ghost-btn" onClick={() => onSendMotor(motorDraft)}>
+              <button type="button" className="ghost-btn" disabled={motionLocked} onClick={() => onSendMotor(motorDraft)}>
                 <ArrowRightLeft size={14} />
                 <span>发送</span>
               </button>
@@ -578,7 +585,7 @@ function WorkspacePage({
                     </div>
                   </div>
                   <div className="motor-control-actions">
-                    <button type="button" className="ghost-btn"
+                    <button type="button" className="ghost-btn" disabled={motionLocked}
                       onClick={() => onSendMotor({ motorId: motor.id, positionMm: motorInlineTargets[motor.id] ?? motor.targetPositionMm, velocityMmPerSec: Math.max(motor.velocityMmPerSec, 1), accelerationMmPerSec2: Math.max(motor.accelerationMmPerSec2, 1) })}>
                       <ArrowRightLeft size={14} />
                       <span>发送</span>
@@ -657,17 +664,17 @@ function WorkspacePage({
                 <input type="number" min={0} max={90} step={0.1} value={bendDraft.angle2Deg}
                   onChange={(event) => setBendDraft((draft) => ({ ...draft, angle2Deg: Number(event.target.value) }))} />
               </label>
-              <button type="button" className="ghost-btn full" onClick={() => onWorkspaceCommand("bend", bendDraft)}>
+              <button type="button" className="ghost-btn full" disabled={motionLocked} onClick={() => onWorkspaceCommand("bend", bendDraft)}>
                 <ArrowRightLeft size={15} />
                 <span>发送弯曲</span>
               </button>
             </div>
             <div className="button-stack" style={{ marginTop: 12 }}>
-              <button type="button" className="ghost-btn full" onClick={() => onWorkspaceCommand("home")}>
+              <button type="button" className="ghost-btn full" disabled={motionLocked} onClick={() => onWorkspaceCommand("home")}>
                 <ArrowRightLeft size={16} />
                 <span>一键归中</span>
               </button>
-              <button type="button" className="ghost-btn full" onClick={() => onWorkspaceCommand("activeTick")}>
+              <button type="button" className="ghost-btn full" disabled={motionLocked} onClick={() => onWorkspaceCommand("activeTick")}>
                 <Activity size={16} />
                 <span>主动控制</span>
               </button>
@@ -744,6 +751,11 @@ function AppController() {
   const [migrationReport, setMigrationReport] = useState<LegacyMigrationReport | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const safeCommand = useSafeCommand();
+
+  useEffect(() => {
+    if (snapshot.runtimeDiagnostics.emergencyLatched) safeCommand.cancel();
+  }, [safeCommand.cancel, snapshot.runtimeDiagnostics.emergencyLatched]);
 
   const setCurrentDevice = useCallback((deviceId: string) => {
     selectCurrentDevice(deviceId);
@@ -1177,9 +1189,9 @@ function AppController() {
     setConnectDialogOpen(true);
   }, []);
 
-  const submitSystemControl = useCallback(async (action: SystemControlAction) => {
+  const runSystemControl = useCallback(async (deviceId: string, action: SystemControlAction) => {
     try {
-      const next = await tauriClient.submitSystemControl(currentDeviceId, action);
+      const next = await tauriClient.submitSystemControl(deviceId, action);
       setSnapshot({
         ...next,
         live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
@@ -1187,35 +1199,57 @@ function AppController() {
     } catch (invokeError) {
       console.error(invokeError);
     }
-  }, [currentDeviceId]);
+  }, []);
+
+  const submitSystemControl = useCallback(async (action: SystemControlAction) => {
+    const deviceId = currentDeviceId;
+    if (action === "disable") {
+      await runSystemControl(deviceId, action);
+      return;
+    }
+
+    const kind: CommandKind = action === "emergencyStop"
+      ? "emergencyStop"
+      : snapshot.runtimeDiagnostics.emergencyLatched
+        ? "recover"
+        : "enable";
+    await safeCommand.execute(kind, { deviceId }, () => runSystemControl(deviceId, action));
+  }, [currentDeviceId, runSystemControl, safeCommand.execute, snapshot.runtimeDiagnostics.emergencyLatched]);
 
   const sendMotorCommand = useCallback(async (command: MotorCommandDraft) => {
-    try {
-      const next = await tauriClient.sendMotorCommand({
-        deviceId: currentDeviceId,
-        motorId: command.motorId,
-        positionMm: command.positionMm,
-        velocityMmPerSec: Math.max(command.velocityMmPerSec, 1),
-        accelerationMmPerSec2: Math.max(command.accelerationMmPerSec2, 1),
-      });
-      setSnapshot({
-        ...next,
-        live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
-      });
-    } catch (invokeError) {
-      console.error(invokeError);
-    }
-  }, [currentDeviceId]);
+    if (snapshot.runtimeDiagnostics.emergencyLatched) return;
+
+    const request = {
+      deviceId: currentDeviceId,
+      motorId: command.motorId,
+      positionMm: command.positionMm,
+      velocityMmPerSec: Math.max(command.velocityMmPerSec, 1),
+      accelerationMmPerSec2: Math.max(command.accelerationMmPerSec2, 1),
+    };
+    await safeCommand.execute("motorMove", request, async () => {
+      try {
+        const next = await tauriClient.sendMotorCommand(request);
+        setSnapshot({
+          ...next,
+          live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
+        });
+      } catch (invokeError) {
+        console.error(invokeError);
+      }
+    });
+  }, [currentDeviceId, safeCommand.execute, snapshot.runtimeDiagnostics.emergencyLatched]);
 
   const submitWorkspaceCommand = useCallback(async (command: WorkspaceCommand, payload: WorkspaceCommandPayload = {}) => {
     const deviceId = currentDeviceId;
     const targetAngles = snapshot.calibration.targetAngles;
-    const commandMap: Record<WorkspaceCommand, { name: string; request: Record<string, unknown> }> = {
+    const commandMap: Record<WorkspaceCommand, { kind: CommandKind; name: string; request: Record<string, unknown> }> = {
       home: {
+        kind: "home",
         name: "send_home_command",
         request: { deviceId, motorCount: 6, startAddress: 1 },
       },
       calibrateSensor: {
+        kind: "calibrate",
         name: "calibrate_sensor",
         request: {
           deviceId,
@@ -1224,6 +1258,7 @@ function AppController() {
         },
       },
       bend: {
+        kind: "bend",
         name: "send_bend_command",
         request: {
           deviceId,
@@ -1234,22 +1269,26 @@ function AppController() {
         },
       },
       activeTick: {
+        kind: "activeControl",
         name: "send_active_control_tick",
         request: { deviceId },
       },
     };
     const selected = commandMap[command];
+    if (snapshot.runtimeDiagnostics.emergencyLatched && command !== "calibrateSensor") return;
 
-    try {
-      const next = await tauriClient.invoke<RuntimeSnapshot>(selected.name, { request: selected.request });
-      setSnapshot({
-        ...next,
-        live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
-      });
-    } catch (invokeError) {
-      console.error(invokeError);
-    }
-  }, [currentDeviceId, snapshot.calibration.targetAngles]);
+    await safeCommand.execute(selected.kind, selected.request, async () => {
+      try {
+        const next = await tauriClient.invoke<RuntimeSnapshot>(selected.name, { request: selected.request });
+        setSnapshot({
+          ...next,
+          live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
+        });
+      } catch (invokeError) {
+        console.error(invokeError);
+      }
+    });
+  }, [currentDeviceId, safeCommand.execute, snapshot.calibration.targetAngles, snapshot.runtimeDiagnostics.emergencyLatched]);
 
   if (!snapshot.authSession.authenticated || snapshot.authSession.mustChangePassword) {
     return (
@@ -1263,6 +1302,8 @@ function AppController() {
       />
     );
   }
+
+  const canRecoverControl = snapshot.authSession.permissions.includes("connectDevice");
 
   return (
     <div className={`theme-${snapshot.theme}`}>
@@ -1281,6 +1322,21 @@ function AppController() {
         onEmergencyStop={() => void submitSystemControl("emergencyStop")}
         onLogout={() => void logoutUser()}
       >
+        {snapshot.runtimeDiagnostics.emergencyLatched ? (
+          <div className="emergency-fault-banner" role="alert">
+            <div className="emergency-fault-copy">
+              <AlertTriangle size={18} />
+              <strong>急停已锁定</strong>
+              <span>全部运动控制已禁用，恢复需通过安全校验。</span>
+            </div>
+            {canRecoverControl ? (
+              <button type="button" className="emergency-recover-button" onClick={() => void submitSystemControl("enable")}>
+                <CheckCircle2 size={16} />
+                <span>恢复控制</span>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {playbackStatus?.active ? (
           <PlaybackBar
             status={playbackStatus}
@@ -1353,6 +1409,15 @@ function AppController() {
           onDeleteProfile={handleDeleteProfile}
           onRefreshPorts={refreshSerialPorts}
           onClose={() => setConnectDialogOpen(false)}
+        />
+        <ConfirmDialog
+          open={safeCommand.confirmation !== null}
+          title={safeCommand.confirmation?.title ?? ""}
+          details={safeCommand.confirmation?.details ?? []}
+          confirmLabel={safeCommand.confirmation?.confirmLabel ?? ""}
+          level={safeCommand.confirmation?.level ?? "warning"}
+          onConfirm={() => void safeCommand.confirm()}
+          onCancel={safeCommand.cancel}
         />
       </AppShell>
     </div>

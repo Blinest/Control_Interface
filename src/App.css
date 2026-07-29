@@ -4023,6 +4023,54 @@ button:disabled {
   opacity: 0.55;
 }
 
+.emergency-fault-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--status-error);
+  background: color-mix(in srgb, var(--status-error) 14%, var(--surface-panel));
+  color: var(--text-primary);
+}
+
+.emergency-fault-copy,
+.motion-lock-reason {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.emergency-fault-copy svg,
+.motion-lock-reason svg {
+  flex: 0 0 auto;
+  color: var(--status-error);
+}
+
+.emergency-fault-copy span {
+  color: var(--text-secondary);
+}
+
+.emergency-recover-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  border-color: var(--status-error);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+
+.motion-lock-reason {
+  margin-bottom: 6px;
+  color: var(--status-error);
+  font-size: 0.78rem;
+}
+
 .login-shell .primary-btn:disabled {
   background: #263545;
   border-color: #34465a;

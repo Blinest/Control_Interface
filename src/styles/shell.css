@@ -132,6 +132,10 @@
 .status-indicator.is-emergency { border-color: var(--status-error); color: var(--status-error); }
 
 .emergency-stop-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   flex: 0 0 auto;
   min-height: 36px;
   border-color: var(--action-danger);
