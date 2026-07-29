@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
@@ -31,6 +30,8 @@ import ChartsPage from "./charts";
 import ConnectDialog from "./components/ConnectDialog";
 import DeviceCard from "./components/DeviceCard";
 import PlaybackBar from "./components/PlaybackBar";
+import { tauriClient } from "./services/tauriClient";
+import { reconcileCurrentDevice, selectCurrentDevice } from "./state/deviceSelectionStore";
 import { makeFallbackSnapshot } from "./state/fallbackSnapshot";
 import { applyTheme, readThemePreference, resolveTheme, writeThemePreference } from "./state/themeStore";
 import SessionsPage from "./pages/SessionsPage";
@@ -723,6 +724,8 @@ function WorkspacePage({
 
 function AppController() {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot>(makeFallbackSnapshot);
+  const [currentDeviceId, setCurrentDeviceId] = useState(() => localStorage.getItem("softui:currentDeviceId") ?? "");
+  const currentDeviceIdRef = useRef(currentDeviceId);
   const [serialPorts, setSerialPorts] = useState<SerialPortDescriptor[]>([]);
   const [serialPortsError, setSerialPortsError] = useState<string | null>(null);
   const [connectedDevices, setConnectedDevices] = useState<DeviceConnectionRecord[]>([]);
@@ -741,15 +744,28 @@ function AppController() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
+  const setCurrentDevice = useCallback((deviceId: string) => {
+    selectCurrentDevice(deviceId);
+    currentDeviceIdRef.current = deviceId;
+    setCurrentDeviceId(deviceId);
+    setSnapshot((previous) => ({
+      ...previous,
+      live: { ...previous.live, selectedDeviceId: deviceId },
+    }));
+  }, []);
+
   const fetchSnapshot = useCallback(async (mode: "bootstrap_state" | "tick_snapshot" = "bootstrap_state") => {
     try {
-      const next = await invoke<RuntimeSnapshot>(mode);
+      const next = mode === "bootstrap_state"
+        ? await tauriClient.bootstrap()
+        : await tauriClient.tick();
       setSnapshot((previous) => {
         const theme = next.authSession.authenticated
           ? resolveThemeForUser(next.authSession.username)
           : previous.theme;
         return {
           ...next,
+          live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
           theme,
           settings: { ...next.settings, theme },
         };
@@ -769,7 +785,7 @@ function AppController() {
 
   const refreshSerialPorts = useCallback(async () => {
     try {
-      const ports = await invoke<SerialPortDescriptor[]>("list_serial_ports");
+      const ports = await tauriClient.invoke<SerialPortDescriptor[]>("list_serial_ports");
       setSerialPorts(ports);
       setSerialPortsError(null);
     } catch (invokeError) {
@@ -792,22 +808,24 @@ function AppController() {
   // Poll connected devices list
   const refreshConnectedDevices = useCallback(async () => {
     try {
-      const devices = await invoke<DeviceConnectionRecord[]>("list_connected_devices");
+      const devices = await tauriClient.invoke<DeviceConnectionRecord[]>("list_connected_devices");
       setConnectedDevices(devices);
+      const reconciledDeviceId = reconcileCurrentDevice(currentDeviceIdRef.current, devices.map((device) => device.deviceId));
+      if (reconciledDeviceId !== currentDeviceIdRef.current) setCurrentDevice(reconciledDeviceId);
 
       // Fetch runtime status for each device (skip simulator)
       const statuses: Record<string, DeviceRuntimeStatusView> = {};
       for (const d of devices) {
         if (d.deviceId.startsWith("serial:")) {
           try {
-            const s = await invoke<DeviceRuntimeStatusView>("device_runtime_status", { deviceId: d.deviceId });
+            const s = await tauriClient.invoke<DeviceRuntimeStatusView>("device_runtime_status", { deviceId: d.deviceId });
             statuses[d.deviceId] = s;
           } catch { /* ignore */ }
         }
       }
       setDeviceStatuses(statuses);
     } catch { /* ignore */ }
-  }, []);
+  }, [setCurrentDevice]);
 
   useEffect(() => {
     const interval = setInterval(() => { void refreshConnectedDevices(); }, 1000);
@@ -817,7 +835,7 @@ function AppController() {
   // Load connection profiles
   const refreshConnectionProfiles = useCallback(async () => {
     try {
-      const profiles = await invoke<ConnectionProfile[]>("list_connection_profiles");
+      const profiles = await tauriClient.invoke<ConnectionProfile[]>("list_connection_profiles");
       setConnectionProfiles(profiles);
     } catch { /* ignore */ }
   }, []);
@@ -828,7 +846,7 @@ function AppController() {
 
   const refreshUsers = useCallback(async () => {
     try {
-      const list = await invoke<UserAccount[]>("list_users");
+      const list = await tauriClient.invoke<UserAccount[]>("list_users");
       setUsers(list);
     } catch {
       setUsers([]);
@@ -854,7 +872,7 @@ function AppController() {
     setAuthBusy(true);
     setAuthError(null);
     try {
-      const session = await invoke<AuthSession>("login", {
+      const session = await tauriClient.invoke<AuthSession>("login", {
         request: { username: username.trim(), password },
       });
       localStorage.setItem("softui:lastUsername", username.trim());
@@ -874,10 +892,10 @@ function AppController() {
     setAuthBusy(true);
     setAuthError(null);
     try {
-      await invoke("change_password", {
+      await tauriClient.invoke("change_password", {
         request: { username: null, oldPassword, newPassword },
       });
-      const session = await invoke<AuthSession>("current_auth_session");
+      const session = await tauriClient.invoke<AuthSession>("current_auth_session");
       applyAuthSession(session);
       await fetchSnapshot("tick_snapshot");
       await refreshUsers();
@@ -890,7 +908,7 @@ function AppController() {
 
   const logoutUser = useCallback(async () => {
     try {
-      const session = await invoke<AuthSession>("logout");
+      const session = await tauriClient.invoke<AuthSession>("logout");
       applyAuthSession(session);
       setUsers([]);
     } catch (invokeError) {
@@ -899,33 +917,33 @@ function AppController() {
   }, [applyAuthSession]);
 
   const createUserAccount = useCallback(async (username: string, password: string, role: Role) => {
-    await invoke<UserAccount>("create_user", {
+    await tauriClient.invoke<UserAccount>("create_user", {
       request: { username: username.trim(), password, role },
     });
     await refreshUsers();
   }, [refreshUsers]);
 
   const resetUserPassword = useCallback(async (username: string, newPassword: string) => {
-    await invoke("change_password", {
+    await tauriClient.invoke("change_password", {
       request: { username, oldPassword: null, newPassword },
     });
     await refreshUsers();
   }, [refreshUsers]);
 
   const setUserDisabled = useCallback(async (username: string, disabled: boolean) => {
-    await invoke<UserAccount>("set_user_disabled", { username, disabled });
+    await tauriClient.invoke<UserAccount>("set_user_disabled", { username, disabled });
     await refreshUsers();
   }, [refreshUsers]);
 
   const handleConnectDevice = useCallback(async (request: ConnectDeviceRequest) => {
-    await invoke("connect_device", { request });
+    await tauriClient.invoke("connect_device", { request });
     setConnectionError(null);
     await refreshConnectedDevices();
   }, [refreshConnectedDevices]);
 
   const handleDisconnectDevice = useCallback(async (deviceId: string) => {
     try {
-      await invoke("disconnect_device", { deviceId });
+      await tauriClient.invoke("disconnect_device", { deviceId });
       await refreshConnectedDevices();
     } catch (e) {
       console.error(e);
@@ -933,12 +951,12 @@ function AppController() {
   }, [refreshConnectedDevices]);
 
   const handleSaveProfile = useCallback(async (profile: ConnectionProfile) => {
-    await invoke("save_connection_profile", { profile });
+    await tauriClient.invoke("save_connection_profile", { profile });
     await refreshConnectionProfiles();
   }, [refreshConnectionProfiles]);
 
   const handleDeleteProfile = useCallback(async (id: string) => {
-    await invoke("delete_connection_profile", { id });
+    await tauriClient.invoke("delete_connection_profile", { id });
     await refreshConnectionProfiles();
   }, [refreshConnectionProfiles]);
 
@@ -947,9 +965,10 @@ function AppController() {
     writeThemePreference(snapshot.authSession.username, nextTheme);
     applyTheme(nextTheme);
     try {
-      const next = await invoke<RuntimeSnapshot>("set_theme", { theme: nextTheme });
+      const next = await tauriClient.invoke<RuntimeSnapshot>("set_theme", { theme: nextTheme });
       setSnapshot((prev) => ({
         ...next,
+        live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
         theme: nextTheme,
         settings: { ...next.settings, theme: nextTheme },
         authSession: next.authSession.authenticated ? next.authSession : prev.authSession,
@@ -965,7 +984,7 @@ function AppController() {
 
   const exportDiagnostics = useCallback(async () => {
     try {
-      const path = await invoke<string>("export_diagnostics_bundle");
+      const path = await tauriClient.invoke<string>("export_diagnostics_bundle");
       setDiagnosticsPath(path);
     } catch (invokeError) {
       setDiagnosticsPath(invokeError instanceof Error ? invokeError.message : String(invokeError));
@@ -975,7 +994,7 @@ function AppController() {
   const previewMigration = useCallback(async () => {
     if (!migrationSource.trim()) return;
     try {
-      const preview = await invoke<LegacyMigrationPreview>("preview_legacy_migration", {
+      const preview = await tauriClient.invoke<LegacyMigrationPreview>("preview_legacy_migration", {
         sourceDir: migrationSource.trim(),
         targetDir: null,
       });
@@ -999,7 +1018,7 @@ function AppController() {
   const runMigration = useCallback(async () => {
     if (!migrationSource.trim()) return;
     try {
-      const report = await invoke<LegacyMigrationReport>("run_legacy_migration", {
+      const report = await tauriClient.invoke<LegacyMigrationReport>("run_legacy_migration", {
         sourceDir: migrationSource.trim(),
         targetDir: null,
       });
@@ -1024,58 +1043,58 @@ function AppController() {
 
   const toggleRecording = useCallback(async () => {
     if (recorderStatus.active) {
-      await invoke<SessionInfo>("stop_recording");
+      await tauriClient.invoke<SessionInfo>("stop_recording");
     } else {
-      await invoke<SessionInfo>("start_recording");
+      await tauriClient.invoke<SessionInfo>("start_recording");
     }
-    const status = await invoke<RecorderStatus>("recorder_status");
+    const status = await tauriClient.invoke<RecorderStatus>("recorder_status");
     setRecorderStatus(status);
-    const list = await invoke<SessionInfo[]>("list_sessions");
+    const list = await tauriClient.invoke<SessionInfo[]>("list_sessions");
     setSessions(list);
   }, [recorderStatus.active]);
 
   const pauseRecording = useCallback(async () => {
     try {
-      await invoke("pause_recording");
-      const status = await invoke<RecorderStatus>("recorder_status");
+      await tauriClient.invoke("pause_recording");
+      const status = await tauriClient.invoke<RecorderStatus>("recorder_status");
       setRecorderStatus(status);
     } catch { /* ignore */ }
   }, []);
 
   const resumeRecording = useCallback(async () => {
     try {
-      await invoke("resume_recording");
-      const status = await invoke<RecorderStatus>("recorder_status");
+      await tauriClient.invoke("resume_recording");
+      const status = await tauriClient.invoke<RecorderStatus>("recorder_status");
       setRecorderStatus(status);
     } catch { /* ignore */ }
   }, []);
 
   const deleteSession = useCallback(async (id: string) => {
     try {
-      await invoke("delete_session", { id });
-      const list = await invoke<SessionInfo[]>("list_sessions");
+      await tauriClient.invoke("delete_session", { id });
+      const list = await tauriClient.invoke<SessionInfo[]>("list_sessions");
       setSessions(list);
     } catch { /* ignore */ }
   }, []);
 
   const renameSession = useCallback(async (id: string, name: string) => {
     try {
-      await invoke("rename_session", { id, name });
-      const list = await invoke<SessionInfo[]>("list_sessions");
+      await tauriClient.invoke("rename_session", { id, name });
+      const list = await tauriClient.invoke<SessionInfo[]>("list_sessions");
       setSessions(list);
     } catch { /* ignore */ }
   }, []);
 
   const exportCsv = useCallback(async (id: string) => {
     try {
-      const path = await invoke<string>("export_session_csv", { id, outputPath: null });
+      const path = await tauriClient.invoke<string>("export_session_csv", { id, outputPath: null });
       console.log("CSV exported to:", path);
     } catch (e) { console.error(e); }
   }, []);
 
   const loadPlayback = useCallback(async (id: string) => {
     try {
-      const status = await invoke<PlaybackStatus>("playback_load", { sessionId: id });
+      const status = await tauriClient.invoke<PlaybackStatus>("playback_load", { sessionId: id });
       setPlaybackStatus(status);
     } catch (e) { console.error(e); }
   }, []);
@@ -1084,29 +1103,29 @@ function AppController() {
     if (!playbackStatus) return;
     try {
       const status = playbackStatus.playing
-        ? await invoke<PlaybackStatus>("playback_pause")
-        : await invoke<PlaybackStatus>("playback_play");
+        ? await tauriClient.invoke<PlaybackStatus>("playback_pause")
+        : await tauriClient.invoke<PlaybackStatus>("playback_play");
       setPlaybackStatus(status);
     } catch (e) { console.error(e); }
   }, [playbackStatus]);
 
   const playbackStop = useCallback(async () => {
     try {
-      await invoke<PlaybackStatus>("playback_stop");
+      await tauriClient.invoke<PlaybackStatus>("playback_stop");
       setPlaybackStatus(null);
     } catch (e) { console.error(e); }
   }, []);
 
   const playbackSeek = useCallback(async (ms: number) => {
     try {
-      const status = await invoke<PlaybackStatus>("playback_seek", { ms });
+      const status = await tauriClient.invoke<PlaybackStatus>("playback_seek", { ms });
       setPlaybackStatus(status);
     } catch (e) { console.error(e); }
   }, []);
 
   const playbackSetSpeed = useCallback(async (speed: number) => {
     try {
-      const status = await invoke<PlaybackStatus>("playback_set_speed", { speed });
+      const status = await tauriClient.invoke<PlaybackStatus>("playback_set_speed", { speed });
       setPlaybackStatus(status);
     } catch (e) { console.error(e); }
   }, []);
@@ -1115,9 +1134,9 @@ function AppController() {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const status = await invoke<RecorderStatus>("recorder_status");
+        const status = await tauriClient.invoke<RecorderStatus>("recorder_status");
         setRecorderStatus(status);
-        const list = await invoke<SessionInfo[]>("list_sessions");
+        const list = await tauriClient.invoke<SessionInfo[]>("list_sessions");
         setSessions(list);
       } catch { /* ignore */ }
     }, 2000);
@@ -1129,7 +1148,7 @@ function AppController() {
     if (!playbackStatus?.active) return;
     const interval = setInterval(async () => {
       try {
-        const status = await invoke<PlaybackStatus>("playback_status");
+        const status = await tauriClient.invoke<PlaybackStatus>("playback_status");
         setPlaybackStatus(status);
         if (!status.active) {
           setPlaybackStatus(null);
@@ -1149,37 +1168,36 @@ function AppController() {
 
   const submitSystemControl = useCallback(async (action: SystemControlAction) => {
     try {
-      const next = await invoke<RuntimeSnapshot>("submit_system_control", {
-        request: {
-          deviceId: snapshot.live.selectedDeviceId,
-          action,
-        },
+      const next = await tauriClient.submitSystemControl(currentDeviceId, action);
+      setSnapshot({
+        ...next,
+        live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
       });
-      setSnapshot(next);
     } catch (invokeError) {
       console.error(invokeError);
     }
-  }, [snapshot.live.selectedDeviceId]);
+  }, [currentDeviceId]);
 
   const sendMotorCommand = useCallback(async (command: MotorCommandDraft) => {
     try {
-      const next = await invoke<RuntimeSnapshot>("send_motor_command", {
-        request: {
-          deviceId: snapshot.live.selectedDeviceId,
-          motorId: command.motorId,
-          positionMm: command.positionMm,
-          velocityMmPerSec: Math.max(command.velocityMmPerSec, 1),
-          accelerationMmPerSec2: Math.max(command.accelerationMmPerSec2, 1),
-        },
+      const next = await tauriClient.sendMotorCommand({
+        deviceId: currentDeviceId,
+        motorId: command.motorId,
+        positionMm: command.positionMm,
+        velocityMmPerSec: Math.max(command.velocityMmPerSec, 1),
+        accelerationMmPerSec2: Math.max(command.accelerationMmPerSec2, 1),
       });
-      setSnapshot(next);
+      setSnapshot({
+        ...next,
+        live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
+      });
     } catch (invokeError) {
       console.error(invokeError);
     }
-  }, [snapshot.live.selectedDeviceId]);
+  }, [currentDeviceId]);
 
   const submitWorkspaceCommand = useCallback(async (command: WorkspaceCommand, payload: WorkspaceCommandPayload = {}) => {
-    const deviceId = snapshot.live.selectedDeviceId;
+    const deviceId = currentDeviceId;
     const targetAngles = snapshot.calibration.targetAngles;
     const commandMap: Record<WorkspaceCommand, { name: string; request: Record<string, unknown> }> = {
       home: {
@@ -1212,12 +1230,15 @@ function AppController() {
     const selected = commandMap[command];
 
     try {
-      const next = await invoke<RuntimeSnapshot>(selected.name, { request: selected.request });
-      setSnapshot(next);
+      const next = await tauriClient.invoke<RuntimeSnapshot>(selected.name, { request: selected.request });
+      setSnapshot({
+        ...next,
+        live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
+      });
     } catch (invokeError) {
       console.error(invokeError);
     }
-  }, [snapshot.calibration.targetAngles, snapshot.live.selectedDeviceId]);
+  }, [currentDeviceId, snapshot.calibration.targetAngles]);
 
   if (!snapshot.authSession.authenticated || snapshot.authSession.mustChangePassword) {
     return (
@@ -1235,7 +1256,7 @@ function AppController() {
   return (
     <div className={`theme-${snapshot.theme}`}>
       <AppShell
-        currentDeviceLabel={snapshot.live.selectedDeviceId || "未选择设备"}
+        currentDeviceLabel={currentDeviceId || "未选择设备"}
         connectionLabel={snapshot.connection.state}
         currentUserLabel={snapshot.authSession.username}
         enabled={snapshot.connection.state === "enabled"}
