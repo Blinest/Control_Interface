@@ -61,3 +61,4 @@ temp/
 *.njsproj
 *.sln
 *.sw?
+.superpowers/
