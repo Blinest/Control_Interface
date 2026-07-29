@@ -4065,6 +4065,19 @@ button:disabled {
   color: var(--text-primary);
 }
 
+.emergency-recovery-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.emergency-recover-device {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
 .motion-lock-reason {
   margin-bottom: 6px;
   color: var(--status-error);

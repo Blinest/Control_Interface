@@ -31,6 +31,12 @@ import ConnectDialog from "./components/ConnectDialog";
 import DeviceCard from "./components/DeviceCard";
 import PlaybackBar from "./components/PlaybackBar";
 import { ConfirmDialog } from "./components/feedback/ConfirmDialog";
+import {
+  createConfirmationSafetyContext,
+  getLatchedDeviceIds,
+  resolveRecoveryDeviceId,
+  shouldInvalidateConfirmation,
+} from "./features/device-workspace/deviceSafety";
 import { useSafeCommand } from "./features/device-workspace/useSafeCommand";
 import type { CommandKind } from "./services/commandPolicy";
 import { tauriClient } from "./services/tauriClient";
@@ -244,6 +250,7 @@ function WorkspacePage({
   serialPortsError,
   connectedDevices,
   deviceStatuses,
+  motionLocked,
   connectionError,
   onOpenConnectDialog,
   onDisconnectDevice,
@@ -257,6 +264,7 @@ function WorkspacePage({
   serialPortsError: string | null;
   connectedDevices: DeviceConnectionRecord[];
   deviceStatuses: Record<string, DeviceRuntimeStatusView>;
+  motionLocked: boolean;
   connectionError: string | null;
   onOpenConnectDialog: () => void;
   onDisconnectDevice: (deviceId: string) => void;
@@ -281,7 +289,6 @@ function WorkspacePage({
     angle2Deg: snapshot.calibration.targetAngles[1],
   });
   const latestFrame = snapshot.live.frames[0];
-  const motionLocked = snapshot.runtimeDiagnostics.emergencyLatched;
   const activeSession = snapshot.playback.sessions.find((session) => session.id === snapshot.playback.activeSessionId) ?? snapshot.playback.sessions[0];
   const progress = clamp((snapshot.playback.cursorMs / Math.max(snapshot.playback.durationMs, 1)) * 100, 0, 100);
   const motorRows = snapshot.live.frames.flatMap((frame) =>
@@ -752,10 +759,25 @@ function AppController() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const safeCommand = useSafeCommand();
+  const latchedDeviceIds = getLatchedDeviceIds(deviceStatuses);
+  const emergencyLatched = snapshot.runtimeDiagnostics.emergencyLatched || latchedDeviceIds.length > 0;
+  const confirmationSafetyContext = createConfirmationSafetyContext(
+    currentDeviceId,
+    snapshot.runtimeDiagnostics.emergencyLatched,
+    deviceStatuses,
+  );
+  const previousConfirmationSafetyContextRef = useRef(confirmationSafetyContext);
 
   useEffect(() => {
-    if (snapshot.runtimeDiagnostics.emergencyLatched) safeCommand.cancel();
-  }, [safeCommand.cancel, snapshot.runtimeDiagnostics.emergencyLatched]);
+    const previousContext = previousConfirmationSafetyContextRef.current;
+    previousConfirmationSafetyContextRef.current = confirmationSafetyContext;
+    if (shouldInvalidateConfirmation(previousContext, confirmationSafetyContext)) safeCommand.cancel();
+  }, [
+    confirmationSafetyContext.aggregateEmergencyLatched,
+    confirmationSafetyContext.deviceLatchState,
+    confirmationSafetyContext.selectedDeviceId,
+    safeCommand.cancel,
+  ]);
 
   const setCurrentDevice = useCallback((deviceId: string) => {
     selectCurrentDevice(deviceId);
@@ -1208,16 +1230,25 @@ function AppController() {
       return;
     }
 
-    const kind: CommandKind = action === "emergencyStop"
-      ? "emergencyStop"
-      : snapshot.runtimeDiagnostics.emergencyLatched
-        ? "recover"
-        : "enable";
+    if (action === "enable" && emergencyLatched) return;
+
+    const kind: CommandKind = action === "emergencyStop" ? "emergencyStop" : "enable";
     await safeCommand.execute(kind, { deviceId }, () => runSystemControl(deviceId, action));
-  }, [currentDeviceId, runSystemControl, safeCommand.execute, snapshot.runtimeDiagnostics.emergencyLatched]);
+  }, [currentDeviceId, emergencyLatched, runSystemControl, safeCommand.execute]);
+
+  const recoverDevice = useCallback(async (requestedDeviceId: string) => {
+    const deviceId = resolveRecoveryDeviceId(deviceStatuses, requestedDeviceId);
+    if (deviceId === null) return;
+
+    await safeCommand.execute(
+      "recover",
+      { deviceId },
+      () => runSystemControl(deviceId, "enable"),
+    );
+  }, [deviceStatuses, runSystemControl, safeCommand.execute]);
 
   const sendMotorCommand = useCallback(async (command: MotorCommandDraft) => {
-    if (snapshot.runtimeDiagnostics.emergencyLatched) return;
+    if (emergencyLatched) return;
 
     const request = {
       deviceId: currentDeviceId,
@@ -1237,7 +1268,7 @@ function AppController() {
         console.error(invokeError);
       }
     });
-  }, [currentDeviceId, safeCommand.execute, snapshot.runtimeDiagnostics.emergencyLatched]);
+  }, [currentDeviceId, emergencyLatched, safeCommand.execute]);
 
   const submitWorkspaceCommand = useCallback(async (command: WorkspaceCommand, payload: WorkspaceCommandPayload = {}) => {
     const deviceId = currentDeviceId;
@@ -1275,7 +1306,7 @@ function AppController() {
       },
     };
     const selected = commandMap[command];
-    if (snapshot.runtimeDiagnostics.emergencyLatched && command !== "calibrateSensor") return;
+    if (emergencyLatched && command !== "calibrateSensor") return;
 
     await safeCommand.execute(selected.kind, selected.request, async () => {
       try {
@@ -1288,7 +1319,7 @@ function AppController() {
         console.error(invokeError);
       }
     });
-  }, [currentDeviceId, safeCommand.execute, snapshot.calibration.targetAngles, snapshot.runtimeDiagnostics.emergencyLatched]);
+  }, [currentDeviceId, emergencyLatched, safeCommand.execute, snapshot.calibration.targetAngles]);
 
   if (!snapshot.authSession.authenticated || snapshot.authSession.mustChangePassword) {
     return (
@@ -1313,7 +1344,7 @@ function AppController() {
         currentUserLabel={snapshot.authSession.username}
         enabled={snapshot.connection.state === "enabled"}
         recording={recorderStatus.active}
-        emergencyLatched={snapshot.runtimeDiagnostics.emergencyLatched}
+        emergencyLatched={emergencyLatched}
         footerItems={[
           `采样 ${snapshot.dashboard.sampleRateHz} Hz`,
           `帧率 ${snapshot.dashboard.frameRateHz} fps`,
@@ -1322,18 +1353,32 @@ function AppController() {
         onEmergencyStop={() => void submitSystemControl("emergencyStop")}
         onLogout={() => void logoutUser()}
       >
-        {snapshot.runtimeDiagnostics.emergencyLatched ? (
+        {emergencyLatched ? (
           <div className="emergency-fault-banner" role="alert">
             <div className="emergency-fault-copy">
               <AlertTriangle size={18} />
               <strong>急停已锁定</strong>
-              <span>全部运动控制已禁用，恢复需通过安全校验。</span>
+              <span>
+                {latchedDeviceIds.length > 0
+                  ? `锁定设备：${latchedDeviceIds.join("、")}`
+                  : "全部运动控制已禁用，正在确认锁定设备。"}
+              </span>
             </div>
-            {canRecoverControl ? (
-              <button type="button" className="emergency-recover-button" onClick={() => void submitSystemControl("enable")}>
-                <CheckCircle2 size={16} />
-                <span>恢复控制</span>
-              </button>
+            {canRecoverControl && latchedDeviceIds.length > 0 ? (
+              <div className="emergency-recovery-actions">
+                {latchedDeviceIds.map((deviceId) => (
+                  <button
+                    key={deviceId}
+                    type="button"
+                    className="emergency-recover-button"
+                    onClick={() => void recoverDevice(deviceId)}
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>恢复控制</span>
+                    <span className="emergency-recover-device">{deviceId}</span>
+                  </button>
+                ))}
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -1357,6 +1402,7 @@ function AppController() {
               serialPortsError={serialPortsError}
               connectedDevices={connectedDevices}
               deviceStatuses={deviceStatuses}
+              motionLocked={emergencyLatched}
               connectionError={connectionError}
               onOpenConnectDialog={toggleConnection}
               onDisconnectDevice={handleDisconnectDevice}
