@@ -1,0 +1,59 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-page);
+  color: var(--text-primary);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  min-height: var(--control-height);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--action-primary);
+  color: var(--action-primary-text);
+}
+
+input {
+  min-height: var(--control-height);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+button:disabled,
+input:disabled {
+  border-color: var(--border-subtle);
+  background: var(--action-disabled);
+  color: var(--action-disabled-text);
+}
+
+a {
+  color: var(--action-primary);
+}
+
+::selection {
+  background: var(--action-primary);
+  color: var(--action-primary-text);
+}
