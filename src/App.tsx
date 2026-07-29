@@ -31,7 +31,7 @@ import ConnectDialog from "./components/ConnectDialog";
 import DeviceCard from "./components/DeviceCard";
 import PlaybackBar from "./components/PlaybackBar";
 import { tauriClient } from "./services/tauriClient";
-import { reconcileCurrentDevice, selectCurrentDevice } from "./state/deviceSelectionStore";
+import { reconcileDeviceRefresh, selectCurrentDevice } from "./state/deviceSelectionStore";
 import { makeFallbackSnapshot } from "./state/fallbackSnapshot";
 import { applyTheme, readThemePreference, resolveTheme, writeThemePreference } from "./state/themeStore";
 import SessionsPage from "./pages/SessionsPage";
@@ -726,6 +726,7 @@ function AppController() {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot>(makeFallbackSnapshot);
   const [currentDeviceId, setCurrentDeviceId] = useState(() => localStorage.getItem("softui:currentDeviceId") ?? "");
   const currentDeviceIdRef = useRef(currentDeviceId);
+  const connectedDevicesRefreshIdRef = useRef(0);
   const [serialPorts, setSerialPorts] = useState<SerialPortDescriptor[]>([]);
   const [serialPortsError, setSerialPortsError] = useState<string | null>(null);
   const [connectedDevices, setConnectedDevices] = useState<DeviceConnectionRecord[]>([]);
@@ -807,10 +808,18 @@ function AppController() {
 
   // Poll connected devices list
   const refreshConnectedDevices = useCallback(async () => {
+    const refreshId = ++connectedDevicesRefreshIdRef.current;
     try {
       const devices = await tauriClient.invoke<DeviceConnectionRecord[]>("list_connected_devices");
+      const reconciledDeviceId = reconcileDeviceRefresh(
+        refreshId,
+        connectedDevicesRefreshIdRef.current,
+        currentDeviceIdRef.current,
+        devices.map((device) => device.deviceId),
+      );
+      if (reconciledDeviceId === null) return;
+
       setConnectedDevices(devices);
-      const reconciledDeviceId = reconcileCurrentDevice(currentDeviceIdRef.current, devices.map((device) => device.deviceId));
       if (reconciledDeviceId !== currentDeviceIdRef.current) setCurrentDevice(reconciledDeviceId);
 
       // Fetch runtime status for each device (skip simulator)
@@ -823,11 +832,13 @@ function AppController() {
           } catch { /* ignore */ }
         }
       }
+      if (refreshId !== connectedDevicesRefreshIdRef.current) return;
       setDeviceStatuses(statuses);
     } catch { /* ignore */ }
   }, [setCurrentDevice]);
 
   useEffect(() => {
+    void refreshConnectedDevices();
     const interval = setInterval(() => { void refreshConnectedDevices(); }, 1000);
     return () => clearInterval(interval);
   }, [refreshConnectedDevices]);

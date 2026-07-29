@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reconcileCurrentDevice } from "./deviceSelectionStore";
+import { reconcileCurrentDevice, reconcileDeviceRefresh } from "./deviceSelectionStore";
 
 describe("reconcileCurrentDevice", () => {
   it("keeps an available explicit selection", () => {
@@ -12,5 +12,9 @@ describe("reconcileCurrentDevice", () => {
 
   it("returns an empty selection when no device exists", () => {
     expect(reconcileCurrentDevice("serial:COM3", [])).toBe("");
+  });
+
+  it("discards an out-of-order refresh so it cannot overwrite the latest selection", () => {
+    expect(reconcileDeviceRefresh(1, 2, "serial:COM4", ["serial:COM3"])).toBeNull();
   });
 });
