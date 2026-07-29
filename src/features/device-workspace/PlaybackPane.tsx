@@ -9,6 +9,7 @@ import type {
   WorkspaceCommand,
   WorkspaceCommandPayload,
 } from "./DeviceWorkspacePage";
+import { isPlaybackForDevice, sessionBelongsToDevice } from "./devicePlayback";
 
 export interface PlaybackPaneProps {
   currentDeviceId: string;
@@ -25,20 +26,24 @@ export function PlaybackPane({
   playbackStatus,
   onWorkspaceCommand,
 }: PlaybackPaneProps) {
-  const currentSessions = sessions.filter((session) => (
-    session.deviceId === currentDeviceId || session.deviceIds?.includes(currentDeviceId)
-  ));
+  const currentSessions = sessions.filter((session) => sessionBelongsToDevice(session, currentDeviceId));
+  const currentPlaybackActive = isPlaybackForDevice(playbackStatus, sessions, currentDeviceId);
+  const foreignPlaybackActive = playbackStatus?.active === true && !currentPlaybackActive;
 
   return (
     <div className="workspace-pane-grid playback-pane">
       <section className="workspace-panel workspace-panel-wide">
         <header>
           <div><span>回放</span><h2>当前设备会话</h2></div>
-          <span className={`status-chip ${playbackStatus?.active ? "is-info" : ""}`}>
-            {playbackStatus?.active ? "回放中" : recorderStatus.active ? "正在记录" : "待选择"}
+          <span className={`status-chip ${currentPlaybackActive ? "is-info" : ""}`}>
+            {currentPlaybackActive
+              ? "回放中"
+              : foreignPlaybackActive
+                ? "另一设备正在回放"
+                : recorderStatus.active ? "正在记录" : "待选择"}
           </span>
         </header>
-        {playbackStatus?.active ? (
+        {currentPlaybackActive && playbackStatus ? (
           <PlaybackBar
             status={playbackStatus}
             onPlayPause={() => onWorkspaceCommand("playbackToggle", { deviceId: currentDeviceId })}
@@ -51,8 +56,12 @@ export function PlaybackPane({
         ) : (
           <div className="workspace-empty-state">
             <Play aria-hidden="true" size={24} />
-            <strong>尚未加载回放会话</strong>
-            <span>选择属于当前设备的历史会话开始回放。回放数据不会向设备发送控制命令。</span>
+            <strong>{foreignPlaybackActive ? "另一设备正在回放" : "尚未加载回放会话"}</strong>
+            <span>
+              {foreignPlaybackActive
+                ? "另一设备的回放控制已隐藏。请选择属于当前设备的历史会话。"
+                : "选择属于当前设备的历史会话开始回放。回放数据不会向设备发送控制命令。"}
+            </span>
           </div>
         )}
       </section>

@@ -18,6 +18,7 @@ import {
   saveLayout,
 } from "../../state/layoutStore";
 import { dashboardCardRegistry } from "./dashboardCards";
+import { latestFrameForDevice } from "../device-workspace/deviceTelemetry";
 import "./dashboard.css";
 
 export interface DashboardPageProps {
@@ -38,8 +39,17 @@ export function DashboardPage({
   const username = snapshot.authSession.username;
   const [layout, setLayout] = useState<PageLayout>(() => loadLayout(username, "dashboard"));
   const [editing, setEditing] = useState(false);
-  const currentFrame = snapshot.live.frames.find((frame) => frame.deviceId === snapshot.live.selectedDeviceId)
-    ?? snapshot.live.frames[0];
+  const currentDeviceId = snapshot.live.selectedDeviceId;
+  const currentFrame = latestFrameForDevice(snapshot, currentDeviceId);
+  const currentConnection = connectedDevices.find((device) => device.deviceId === currentDeviceId);
+  const currentRuntime = deviceStatuses[currentDeviceId];
+  const currentConnectionState = currentConnection?.state
+    ?? currentRuntime?.state
+    ?? (currentFrame ? snapshot.connection.state : "无数据");
+  const globalFault = snapshot.runtimeDiagnostics.lastError
+    ?? snapshot.dashboard.lastError
+    ?? snapshot.runtimeDiagnostics.lastProtocolError
+    ?? "无";
 
   useEffect(() => {
     setLayout(loadLayout(username, "dashboard"));
@@ -62,13 +72,14 @@ export function DashboardPage({
     <div className="dashboard-summary-bar" aria-label="全局设备摘要">
       <div className="dashboard-summary-heading">
         <span>运行总览</span>
-        <strong>{snapshot.live.selectedDeviceId || "未选择设备"}</strong>
+        <strong>{currentDeviceId || "未选择设备"}</strong>
       </div>
       <div className="critical-status-strip">
-        <div><span>当前控制设备</span><strong>{snapshot.live.selectedDeviceId || "未选择"}</strong></div>
-        <div><span>连接状态</span><strong>{snapshot.connection.state}</strong></div>
-        <div><span>使能状态</span><strong>{currentFrame?.systemEnabled ? "已使能" : "未使能"}</strong></div>
+        <div><span>当前控制设备</span><strong>{currentDeviceId || "未选择"}</strong></div>
+        <div><span>连接状态</span><strong>{currentConnectionState}</strong></div>
+        <div><span>使能状态</span><strong>{currentFrame ? (currentFrame.systemEnabled ? "已使能" : "未使能") : "无数据"}</strong></div>
         <div><span>急停状态</span><strong>{snapshot.runtimeDiagnostics.emergencyLatched ? "已锁定" : "正常"}</strong></div>
+        <div><span>全局故障</span><strong title={globalFault}>{globalFault}</strong></div>
       </div>
       <button className="ghost-btn" onClick={() => setEditing((value) => !value)} type="button">
         <Pencil aria-hidden="true" size={16} />

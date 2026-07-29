@@ -35,6 +35,7 @@ import {
   type WorkspaceCommand,
   type WorkspaceCommandPayload,
 } from "./features/device-workspace/DeviceWorkspacePage";
+import { isPlaybackForDevice } from "./features/device-workspace/devicePlayback";
 import { useSafeCommand } from "./features/device-workspace/useSafeCommand";
 import type { CommandKind } from "./services/commandPolicy";
 import { tauriClient } from "./services/tauriClient";
@@ -883,6 +884,11 @@ function AppController() {
   }
 
   const canRecoverControl = snapshot.authSession.permissions.includes("connectDevice");
+  const currentDevicePlaybackActive = isPlaybackForDevice(
+    playbackStatus,
+    sessions,
+    currentDeviceId,
+  );
 
   return (
     <div className={`theme-${snapshot.theme}`}>
@@ -930,7 +936,7 @@ function AppController() {
             ) : null}
           </div>
         ) : null}
-        {playbackStatus?.active ? (
+        {currentDevicePlaybackActive && playbackStatus ? (
           <PlaybackBar
             status={playbackStatus}
             onPlayPause={playbackPlayPause}

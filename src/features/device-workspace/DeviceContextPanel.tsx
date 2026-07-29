@@ -12,6 +12,7 @@ import type {
   RuntimeSnapshot,
 } from "../../softuiTypes";
 import type { SystemControlAction } from "./DeviceWorkspacePage";
+import { latestFrameForDevice } from "./deviceTelemetry";
 
 export interface DeviceContextPanelProps {
   snapshot: RuntimeSnapshot;
@@ -38,10 +39,9 @@ export function DeviceContextPanel({
 }: DeviceContextPanelProps) {
   const currentConnection = connectedDevices.find((device) => device.deviceId === currentDeviceId);
   const currentRuntime = deviceStatuses[currentDeviceId];
-  const frame = snapshot.live.frames.find((candidate) => candidate.deviceId === currentDeviceId)
-    ?? snapshot.live.frames[0];
+  const frame = latestFrameForDevice(snapshot, currentDeviceId);
   const deviceOptions = currentDeviceId && !connectedDevices.some((device) => device.deviceId === currentDeviceId)
-    ? [{ deviceId: currentDeviceId, state: snapshot.connection.state }, ...connectedDevices]
+    ? [{ deviceId: currentDeviceId }, ...connectedDevices]
     : connectedDevices;
   const emergencyLatched = snapshot.runtimeDiagnostics.emergencyLatched || currentRuntime?.emergencyLatched === true;
 
@@ -73,10 +73,10 @@ export function DeviceContextPanel({
       </label>
 
       <div className="context-status-list">
-        <div><span>连接状态</span><strong>{currentConnection?.state ?? snapshot.connection.state}</strong></div>
-        <div><span>使能状态</span><strong>{frame?.systemEnabled ? "已使能" : "未使能"}</strong></div>
+        <div><span>连接状态</span><strong>{currentConnection?.state ?? currentRuntime?.state ?? (frame ? snapshot.connection.state : "无数据")}</strong></div>
+        <div><span>使能状态</span><strong>{frame ? (frame.systemEnabled ? "已使能" : "未使能") : "无数据"}</strong></div>
         <div><span>急停状态</span><strong>{emergencyLatched ? "已锁定" : "正常"}</strong></div>
-        <div><span>命令队列</span><strong>{currentRuntime?.pendingCommands ?? snapshot.runtimeDiagnostics.pendingCommands}</strong></div>
+        <div><span>命令队列</span><strong>{currentRuntime?.pendingCommands ?? "无数据"}</strong></div>
         <div><span>最近帧</span><strong>{frame ? `#${frame.sequence}` : "无数据"}</strong></div>
       </div>
 

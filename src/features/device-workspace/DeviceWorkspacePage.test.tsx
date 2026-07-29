@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageLayout } from "../../softuiTypes";
@@ -120,5 +120,137 @@ describe("DeviceWorkspacePage", () => {
     expect(saved.cards.find((card) => card.id === "model3d")?.size).toBe("2x1");
     expect(robotSceneLifecycle.mounts).toBe(1);
     expect(robotSceneLifecycle.unmounts).toBe(0);
+  });
+
+  it("keeps selected-device telemetry empty when only another device has frames", async () => {
+    const user = userEvent.setup();
+    const snapshot = structuredClone(fixtureSnapshot);
+    snapshot.live.selectedDeviceId = "device-without-frames";
+    snapshot.live.frames[0].sequence = 987_654;
+    snapshot.live.frames[0].motors[0].positionMm = 4_321.25;
+    snapshot.charts.channels[0].points = [9_876.5];
+    snapshot.runtimeDiagnostics.pendingCommands = 7_654;
+
+    render(
+      <DeviceWorkspacePage
+        {...workspaceProps}
+        currentDeviceId="device-without-frames"
+        snapshot={snapshot}
+      />,
+    );
+
+    const context = screen.getByLabelText("设备上下文");
+    expect(within(context).getByText("最近帧").parentElement).toHaveTextContent("无数据");
+    expect(within(context).queryByText("7654")).not.toBeInTheDocument();
+    expect(screen.queryByText("#987654")).not.toBeInTheDocument();
+    expect(screen.queryByText(/9876\.50/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("三维模型视图")).not.toBeInTheDocument();
+    expect(screen.getByText("当前设备没有实时图表数据")).toBeVisible();
+    expect(screen.getByText("当前设备没有三维姿态数据")).toBeVisible();
+
+    await user.click(screen.getByRole("tab", { name: "实时数据" }));
+    expect(screen.queryByText("4321.25 mm")).not.toBeInTheDocument();
+    expect(screen.getByText("当前设备没有电机数据")).toBeVisible();
+    expect(screen.getByText("当前设备没有传感器数据")).toBeVisible();
+
+    await user.click(screen.getByRole("tab", { name: "手动控制" }));
+    expect(screen.queryByText("4321.3 mm")).not.toBeInTheDocument();
+    expect(screen.getByText("当前设备没有电机状态数据")).toBeVisible();
+  });
+
+  it("resets manual control drafts when the current device changes", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<DeviceWorkspacePage {...workspaceProps} />);
+
+    await user.click(screen.getByRole("tab", { name: "手动控制" }));
+    const position = screen.getByRole("spinbutton", { name: "目标位置 (mm)" });
+    await user.clear(position);
+    await user.type(position, "42.5");
+    expect(position).toHaveValue(42.5);
+
+    rerender(<DeviceWorkspacePage {...workspaceProps} currentDeviceId="device-b" />);
+
+    expect(screen.getByRole("spinbutton", { name: "目标位置 (mm)" })).toHaveValue(0);
+    await user.click(screen.getByRole("button", { name: "发送电机命令" }));
+    expect(workspaceProps.onSendMotor).toHaveBeenLastCalledWith(expect.objectContaining({
+      deviceId: "device-b",
+      positionMm: 0,
+    }));
+  });
+
+  it("resets automatic control drafts when the current device changes", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<DeviceWorkspacePage {...workspaceProps} />);
+
+    await user.click(screen.getByRole("tab", { name: "自动控制" }));
+    const kp = screen.getByRole("spinbutton", { name: "Kp" });
+    await user.clear(kp);
+    await user.type(kp, "77");
+    expect(kp).toHaveValue(77);
+
+    rerender(<DeviceWorkspacePage {...workspaceProps} currentDeviceId="device-b" />);
+
+    expect(screen.getByRole("spinbutton", { name: "Kp" })).toHaveValue(
+      fixtureSnapshot.controlRuntime.pid.kp,
+    );
+    await user.click(screen.getByRole("button", { name: "保存 PID 参数" }));
+    expect(workspaceProps.onWorkspaceCommand).toHaveBeenLastCalledWith(
+      "updatePid",
+      expect.objectContaining({
+        deviceId: "device-b",
+        pid: expect.objectContaining({ kp: fixtureSnapshot.controlRuntime.pid.kp }),
+      }),
+    );
+  });
+
+  it("does not expose another device's active playback as current-device playback", async () => {
+    const user = userEvent.setup();
+    const sessions = [
+      {
+        id: "session-current",
+        name: "Current device session",
+        startTime: "2026-07-29T09:00:00+08:00",
+        endTime: null,
+        deviceId: "softui-sim-01",
+        frameCount: 12,
+        fileSize: 512,
+        filePath: "current.jsonl",
+      },
+      {
+        id: "session-foreign",
+        name: "Foreign device session",
+        startTime: "2026-07-29T10:00:00+08:00",
+        endTime: null,
+        deviceId: "device-b",
+        frameCount: 24,
+        fileSize: 1024,
+        filePath: "foreign.jsonl",
+      },
+    ];
+    const playbackStatus = {
+      active: true,
+      sessionId: "session-foreign",
+      playing: true,
+      speed: 1,
+      cursorMs: 500,
+      durationMs: 1_000,
+      cursorPct: 0.5,
+      totalFrames: 24,
+      currentFrameIdx: 12,
+    };
+    render(
+      <DeviceWorkspacePage
+        {...workspaceProps}
+        playbackStatus={playbackStatus}
+        sessions={sessions}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "回放" }));
+
+    expect(screen.queryByTitle("停止")).not.toBeInTheDocument();
+    expect(screen.getAllByText("另一设备正在回放").length).toBeGreaterThan(0);
+    expect(screen.getByText("Current device session")).toBeVisible();
+    expect(screen.queryByText("Foreign device session")).not.toBeInTheDocument();
   });
 });

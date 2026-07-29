@@ -6,6 +6,7 @@ import type {
   WorkspaceCommand,
   WorkspaceCommandPayload,
 } from "./DeviceWorkspacePage";
+import { latestFrameForDevice } from "./deviceTelemetry";
 
 export interface ManualControlPaneProps {
   snapshot: RuntimeSnapshot;
@@ -35,8 +36,7 @@ export function ManualControlPane({
     direction2: 0,
     angle2Deg: snapshot.calibration.targetAngles[1],
   });
-  const currentFrame = snapshot.live.frames.find((frame) => frame.deviceId === currentDeviceId)
-    ?? snapshot.live.frames[0];
+  const currentFrame = latestFrameForDevice(snapshot, currentDeviceId);
   const motionLocked = snapshot.runtimeDiagnostics.emergencyLatched
     || deviceStatuses[currentDeviceId]?.emergencyLatched === true;
 
@@ -97,6 +97,9 @@ export function ManualControlPane({
               <small>{item.running ? "运行" : "停止"}</small>
             </div>
           ))}
+          {!currentFrame || currentFrame.motors.length === 0 ? (
+            <div className="feature-empty-compact">当前设备没有电机状态数据</div>
+          ) : null}
         </div>
       </section>
 

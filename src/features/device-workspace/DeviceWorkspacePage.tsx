@@ -153,6 +153,7 @@ export function DeviceWorkspacePage(props: DeviceWorkspacePageProps) {
         ) : null}
         {activeTab === "manual" ? (
           <ManualControlPane
+            key={props.currentDeviceId}
             currentDeviceId={props.currentDeviceId}
             deviceStatuses={props.deviceStatuses}
             onSendMotor={props.onSendMotor}
@@ -162,6 +163,7 @@ export function DeviceWorkspacePage(props: DeviceWorkspacePageProps) {
         ) : null}
         {activeTab === "automatic" ? (
           <AutomaticControlPane
+            key={props.currentDeviceId}
             currentDeviceId={props.currentDeviceId}
             deviceStatuses={props.deviceStatuses}
             onSystemControl={props.onSystemControl}

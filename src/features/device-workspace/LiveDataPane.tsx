@@ -1,4 +1,5 @@
 import type { RuntimeSnapshot } from "../../softuiTypes";
+import { framesForDevice } from "./deviceTelemetry";
 
 export interface LiveDataPaneProps {
   snapshot: RuntimeSnapshot;
@@ -15,10 +16,9 @@ function formatReceivedAt(receivedAtMs: number) {
 }
 
 export function LiveDataPane({ snapshot, currentDeviceId }: LiveDataPaneProps) {
-  const frames = snapshot.live.frames.filter((frame) => frame.deviceId === currentDeviceId);
-  const currentFrames = frames.length > 0 ? frames : snapshot.live.frames.slice(0, 1);
-  const motorRows = currentFrames.flatMap((frame) => frame.motors.map((motor) => ({ frame, motor })));
-  const sensorRows = currentFrames.flatMap((frame) => frame.sensors.map((sensor) => ({ frame, sensor })));
+  const frames = framesForDevice(snapshot, currentDeviceId);
+  const motorRows = frames.flatMap((frame) => frame.motors.map((motor) => ({ frame, motor })));
+  const sensorRows = frames.flatMap((frame) => frame.sensors.map((sensor) => ({ frame, sensor })));
 
   return (
     <div className="workspace-pane-grid live-data-pane">
@@ -38,6 +38,9 @@ export function LiveDataPane({ snapshot, currentDeviceId }: LiveDataPaneProps) {
               <span>{motor.running ? "运行" : "停止"}</span>
             </div>
           ))}
+          {motorRows.length === 0 ? (
+            <div className="feature-empty-compact">当前设备没有电机数据</div>
+          ) : null}
         </div>
       </section>
 
@@ -57,6 +60,9 @@ export function LiveDataPane({ snapshot, currentDeviceId }: LiveDataPaneProps) {
               <span>{sensor.filtered[2].toFixed(2)}</span>
             </div>
           ))}
+          {sensorRows.length === 0 ? (
+            <div className="feature-empty-compact">当前设备没有传感器数据</div>
+          ) : null}
         </div>
       </section>
     </div>

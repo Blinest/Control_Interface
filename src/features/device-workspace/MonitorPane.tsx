@@ -24,6 +24,7 @@ import {
   resetLayout,
   saveLayout,
 } from "../../state/layoutStore";
+import { framesForDevice, latestFrameForDevice } from "./deviceTelemetry";
 
 export interface MonitorPaneProps {
   snapshot: RuntimeSnapshot;
@@ -41,13 +42,23 @@ interface MonitorCardDefinition {
   render: (context: MonitorCardContext) => ReactNode;
 }
 
-function currentFrame(snapshot: RuntimeSnapshot, currentDeviceId: string) {
-  return snapshot.live.frames.find((frame) => frame.deviceId === currentDeviceId)
-    ?? snapshot.live.frames[0];
-}
+function LiveChartCard({
+  snapshot,
+  currentDeviceId,
+}: Pick<MonitorPaneProps, "snapshot" | "currentDeviceId">) {
+  const frames = framesForDevice(snapshot, currentDeviceId).slice(0, 36).reverse();
+  const motorId = frames[frames.length - 1]?.motors[0]?.id;
+  const points = motorId === undefined
+    ? []
+    : frames.flatMap((frame) => {
+      const motor = frame.motors.find((candidate) => candidate.id === motorId);
+      return motor ? [motor.positionMm] : [];
+    });
 
-function LiveChartCard({ snapshot }: Pick<MonitorPaneProps, "snapshot">) {
-  const points = snapshot.charts.channels[0]?.points.slice(-36) ?? [];
+  if (points.length === 0) {
+    return <div className="feature-empty-compact">当前设备没有实时图表数据</div>;
+  }
+
   const maxMagnitude = Math.max(...points.map((value) => Math.abs(value)), 1);
   return (
     <div className="monitor-chart" aria-label="当前通道实时趋势">
@@ -60,19 +71,22 @@ function LiveChartCard({ snapshot }: Pick<MonitorPaneProps, "snapshot">) {
         ))}
       </div>
       <div className="monitor-chart-meta">
-        <span>{snapshot.charts.channels[0]?.name ?? "暂无通道"}</span>
-        <strong>{points[points.length - 1]?.toFixed(2) ?? "-"} {snapshot.charts.channels[0]?.unit ?? ""}</strong>
+        <span>电机 {motorId} 位置</span>
+        <strong>{points[points.length - 1].toFixed(2)} mm</strong>
       </div>
     </div>
   );
 }
 
 function ModelCard({ snapshot, currentDeviceId }: Pick<MonitorPaneProps, "snapshot" | "currentDeviceId">) {
-  const frame = currentFrame(snapshot, currentDeviceId);
+  const frame = latestFrameForDevice(snapshot, currentDeviceId);
+  if (!frame) {
+    return <div className="feature-empty-compact">当前设备没有三维姿态数据</div>;
+  }
   return (
     <RobotScene
-      section1AngleDeg={frame?.bend.section1.angleDeg ?? 0}
-      section2AngleDeg={frame?.bend.section2.angleDeg ?? 0}
+      section1AngleDeg={frame.bend.section1.angleDeg}
+      section2AngleDeg={frame.bend.section2.angleDeg}
     />
   );
 }
@@ -81,7 +95,9 @@ export const monitorCardRegistry: Record<MonitorCardId, MonitorCardDefinition> =
   liveChart: {
     title: "实时图表",
     icon: Activity,
-    render: ({ snapshot }) => <LiveChartCard snapshot={snapshot} />,
+    render: ({ snapshot, currentDeviceId }) => (
+      <LiveChartCard currentDeviceId={currentDeviceId} snapshot={snapshot} />
+    ),
   },
   model3d: {
     title: "三维模型",
@@ -92,13 +108,13 @@ export const monitorCardRegistry: Record<MonitorCardId, MonitorCardDefinition> =
     title: "设备状态",
     icon: Gauge,
     render: ({ snapshot, currentDeviceId, deviceStatuses }) => {
-      const frame = currentFrame(snapshot, currentDeviceId);
+      const frame = latestFrameForDevice(snapshot, currentDeviceId);
       const status = deviceStatuses[currentDeviceId];
       return (
         <div className="feature-metric-grid">
-          <div className="feature-metric"><span>连接</span><strong>{status?.state ?? snapshot.connection.state}</strong></div>
+          <div className="feature-metric"><span>连接</span><strong>{status?.state ?? (frame ? snapshot.connection.state : "无数据")}</strong></div>
           <div className="feature-metric"><span>帧号</span><strong>{frame ? `#${frame.sequence}` : "-"}</strong></div>
-          <div className="feature-metric"><span>使能</span><strong>{frame?.systemEnabled ? "是" : "否"}</strong></div>
+          <div className="feature-metric"><span>使能</span><strong>{frame ? (frame.systemEnabled ? "是" : "否") : "无数据"}</strong></div>
           <div className="feature-metric"><span>延迟</span><strong>{frame ? `${frame.quality.latencyMs} ms` : "-"}</strong></div>
         </div>
       );
@@ -107,14 +123,14 @@ export const monitorCardRegistry: Record<MonitorCardId, MonitorCardDefinition> =
   commandQueue: {
     title: "命令队列",
     icon: ListOrdered,
-    render: ({ snapshot, currentDeviceId, deviceStatuses }) => {
+    render: ({ currentDeviceId, deviceStatuses }) => {
       const status = deviceStatuses[currentDeviceId];
       return (
         <div className="feature-metric-grid">
-          <div className="feature-metric"><span>等待命令</span><strong>{status?.pendingCommands ?? snapshot.runtimeDiagnostics.pendingCommands}</strong></div>
-          <div className="feature-metric"><span>已发送</span><strong>{status?.sentCommands ?? snapshot.runtimeDiagnostics.sentCommands}</strong></div>
+          <div className="feature-metric"><span>等待命令</span><strong>{status?.pendingCommands ?? "无数据"}</strong></div>
+          <div className="feature-metric"><span>已发送</span><strong>{status?.sentCommands ?? "无数据"}</strong></div>
           <div className="feature-metric"><span>峰值</span><strong>{status?.commandHighWatermark ?? "-"}</strong></div>
-          <div className="feature-metric"><span>协议错误</span><strong>{status?.protocolErrors ?? snapshot.runtimeDiagnostics.protocolErrors}</strong></div>
+          <div className="feature-metric"><span>协议错误</span><strong>{status?.protocolErrors ?? "无数据"}</strong></div>
         </div>
       );
     },
@@ -123,10 +139,10 @@ export const monitorCardRegistry: Record<MonitorCardId, MonitorCardDefinition> =
     title: "电机摘要",
     icon: Cpu,
     render: ({ snapshot, currentDeviceId }) => {
-      const frame = currentFrame(snapshot, currentDeviceId);
-      return (
+      const frame = latestFrameForDevice(snapshot, currentDeviceId);
+      return frame && frame.motors.length > 0 ? (
         <div className="monitor-summary-grid">
-          {frame?.motors.map((motor) => (
+          {frame.motors.map((motor) => (
             <div key={motor.id}>
               <span>M{motor.id}</span>
               <strong>{motor.positionMm.toFixed(1)} mm</strong>
@@ -134,17 +150,17 @@ export const monitorCardRegistry: Record<MonitorCardId, MonitorCardDefinition> =
             </div>
           ))}
         </div>
-      );
+      ) : <div className="feature-empty-compact">当前设备没有电机数据</div>;
     },
   },
   sensorSummary: {
     title: "传感器摘要",
     icon: Radio,
     render: ({ snapshot, currentDeviceId }) => {
-      const frame = currentFrame(snapshot, currentDeviceId);
-      return (
+      const frame = latestFrameForDevice(snapshot, currentDeviceId);
+      return frame && frame.sensors.length > 0 ? (
         <div className="monitor-summary-grid">
-          {frame?.sensors.map((sensor) => (
+          {frame.sensors.map((sensor) => (
             <div key={sensor.id}>
               <span>S{sensor.id}</span>
               <strong>{sensor.filtered[0].toFixed(2)}</strong>
@@ -152,7 +168,7 @@ export const monitorCardRegistry: Record<MonitorCardId, MonitorCardDefinition> =
             </div>
           ))}
         </div>
-      );
+      ) : <div className="feature-empty-compact">当前设备没有传感器数据</div>;
     },
   },
   recentAlerts: {

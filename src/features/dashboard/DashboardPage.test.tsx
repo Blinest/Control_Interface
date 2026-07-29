@@ -42,14 +42,36 @@ describe("DashboardPage", () => {
       JSON.stringify(sparseLayout),
     );
 
-    render(<DashboardPage {...dashboardProps} />);
+    const snapshot = structuredClone(fixtureSnapshot);
+    snapshot.runtimeDiagnostics.lastError = "E-GLOBAL-451: safety interlock unavailable";
+
+    render(<DashboardPage {...dashboardProps} snapshot={snapshot} />);
 
     const summary = screen.getByLabelText("全局设备摘要");
     expect(within(summary).getByText("当前控制设备")).toBeVisible();
     expect(within(summary).getByText("连接状态")).toBeVisible();
     expect(within(summary).getByText("使能状态")).toBeVisible();
     expect(within(summary).getByText("急停状态")).toBeVisible();
+    expect(within(summary).getByText("全局故障")).toBeVisible();
+    expect(within(summary).getByText("E-GLOBAL-451: safety interlock unavailable")).toBeVisible();
     expect(screen.queryByRole("heading", { name: "最近关键事件" })).not.toBeInTheDocument();
+  });
+
+  it("does not use another device's frame as the selected device summary", () => {
+    const snapshot = structuredClone(fixtureSnapshot);
+    snapshot.live.selectedDeviceId = "device-without-frames";
+    snapshot.live.frames[0].quality.latencyMs = 43_210;
+    snapshot.live.frames[0].systemEnabled = true;
+
+    render(<DashboardPage {...dashboardProps} snapshot={snapshot} />);
+
+    const summary = screen.getByLabelText("全局设备摘要");
+    expect(within(summary).getByText("使能状态").parentElement).toHaveTextContent("无数据");
+
+    const healthCard = screen.getByRole("heading", { name: "设备健康" }).closest("article");
+    expect(healthCard).not.toBeNull();
+    expect(within(healthCard as HTMLElement).queryByText("43210 ms")).not.toBeInTheDocument();
+    expect(within(healthCard as HTMLElement).getAllByText("无数据").length).toBeGreaterThan(0);
   });
 
   it("edits and persists the current user's dashboard layout", async () => {
