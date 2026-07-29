@@ -2,6 +2,36 @@ export type ChartChannelType = "motor" | "bend" | "sensor";
 
 export type ThemeMode = "dark" | "light";
 
+export type CardSize = "1x1" | "2x1" | "1x2" | "2x2";
+export type LayoutPage = "dashboard" | "workspace-monitor";
+export type DashboardCardId =
+  | "connection"
+  | "sampling"
+  | "recording"
+  | "alerts"
+  | "deviceHealth"
+  | "recentSessions"
+  | "recentEvents";
+export type MonitorCardId =
+  | "liveChart"
+  | "model3d"
+  | "deviceState"
+  | "commandQueue"
+  | "motorSummary"
+  | "sensorSummary"
+  | "recentAlerts";
+
+export interface CardPlacement {
+  id: DashboardCardId | MonitorCardId;
+  size: CardSize;
+  visible: boolean;
+}
+
+export interface PageLayout {
+  schemaVersion: 1;
+  cards: CardPlacement[];
+}
+
 export type PageKey =
   | "Dashboard"
   | "Workspace"
