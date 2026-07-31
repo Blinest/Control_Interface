@@ -8,6 +8,8 @@ const sessionsCss = readFileSync(new URL("../src/features/sessions/sessions.css"
 const logs = readFileSync(new URL("../src/features/logs/LogsPage.tsx", import.meta.url), "utf8");
 const logsCss = readFileSync(new URL("../src/features/logs/logs.css", import.meta.url), "utf8");
 const logFilters = readFileSync(new URL("../src/features/logs/logFilters.ts", import.meta.url), "utf8");
+const settings = readFileSync(new URL("../src/features/settings/SettingsPage.tsx", import.meta.url), "utf8");
+const settingsCss = readFileSync(new URL("../src/features/settings/settings.css", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../src/styles/shell.css", import.meta.url), "utf8");
 
 assert.match(shell, /\.global-status-bar[\s\S]*min-width:\s*0/, "global status bar must constrain its flexible content");
@@ -26,6 +28,8 @@ for (const label of ["warning", "error", "info", "bug"]) {
   assert.match(logFilters, new RegExp(`"${label}"`), `logs page needs ${label} filter`);
 }
 assert.match(logFilters, /level === "debug"[\s\S]*\? "bug"/, "bug filter should map to debug log level");
+assert.match(settingsCss, /\.settings-navigation-tabs/, "settings page needs categorized navigation");
+assert.match(settings, /SettingsLayout/, "settings page must use categorized layout");
 assert.match(sessions, /RecorderWorkbench/, "SessionsPage must merge recorder and stats into one workbench");
 assert.doesNotMatch(
   sessions,

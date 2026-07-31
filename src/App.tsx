@@ -1,16 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
-  Cpu,
-  Database,
-  Eye,
   Fingerprint,
-  PauseCircle,
-  Save,
-  Settings2,
-  SunMedium,
 } from "lucide-react";
 import { HashRouter } from "react-router-dom";
 
@@ -22,6 +14,7 @@ import { ConfirmDialog } from "./components/feedback/ConfirmDialog";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import ChartsPage from "./features/charts/ChartsPage";
 import LogsPage from "./features/logs/LogsPage";
+import SettingsPage from "./features/settings/SettingsPage";
 import {
   createConfirmationSafetyContext,
   getLatchedDeviceIds,
@@ -41,7 +34,14 @@ import type { CommandKind } from "./services/commandPolicy";
 import { tauriClient } from "./services/tauriClient";
 import { reconcileDeviceRefresh, selectCurrentDevice } from "./state/deviceSelectionStore";
 import { makeFallbackSnapshot } from "./state/fallbackSnapshot";
-import { applyTheme, readThemePreference, resolveTheme, writeThemePreference } from "./state/themeStore";
+import { resetLayout } from "./state/layoutStore";
+import {
+  applyTheme,
+  readThemePreference,
+  resolveTheme,
+  writeThemePreference,
+  type ThemePreference,
+} from "./state/themeStore";
 import type {
   AuthSession,
   ConnectDeviceRequest,
@@ -66,41 +66,6 @@ function resolveThemeForUser(username: string): ThemeMode {
   return resolveTheme(
     readThemePreference(username),
     window.matchMedia("(prefers-color-scheme: dark)").matches,
-  );
-}
-
-function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "ok" | "warn" | "error" | "info" }) {
-  return <span className={`badge ${tone}`}>{children}</span>;
-}
-
-function Panel({
-  title,
-  subtitle,
-  icon: Icon,
-  action,
-  children,
-  wide = false,
-}: {
-  title: string;
-  subtitle?: string;
-  icon?: LucideIcon;
-  action?: ReactNode;
-  children: ReactNode;
-  wide?: boolean;
-}) {
-  return (
-    <section className={`panel ${wide ? "wide" : ""}`}>
-      <div className="panel-head">
-        <div>
-          <div className="panel-kicker">{subtitle}</div>
-          <h2>{title}</h2>
-        </div>
-        <div className="panel-action">
-          {action ?? (Icon ? <Icon size={16} /> : null)}
-        </div>
-      </div>
-      {children}
-    </section>
   );
 }
 
@@ -453,27 +418,35 @@ function AppController() {
     await refreshConnectionProfiles();
   }, [refreshConnectionProfiles]);
 
-  const toggleTheme = useCallback(async () => {
-    const nextTheme: ThemeMode = snapshot.theme === "dark" ? "light" : "dark";
-    writeThemePreference(snapshot.authSession.username, nextTheme);
-    applyTheme(nextTheme);
+  const setThemePreference = useCallback(async (preference: ThemePreference) => {
+    const resolved = resolveTheme(
+      preference,
+      window.matchMedia("(prefers-color-scheme: dark)").matches,
+    );
+    writeThemePreference(snapshot.authSession.username, preference);
+    applyTheme(resolved);
     try {
-      const next = await tauriClient.invoke<RuntimeSnapshot>("set_theme", { theme: nextTheme });
+      const next = await tauriClient.invoke<RuntimeSnapshot>("set_theme", { theme: resolved });
       setSnapshot((prev) => ({
         ...next,
         live: { ...next.live, selectedDeviceId: currentDeviceIdRef.current },
-        theme: nextTheme,
-        settings: { ...next.settings, theme: nextTheme },
+        theme: resolved,
+        settings: { ...next.settings, theme: resolved },
         authSession: next.authSession.authenticated ? next.authSession : prev.authSession,
       }));
     } catch {
       setSnapshot((prev) => ({
         ...prev,
-        theme: nextTheme,
-        settings: { ...prev.settings, theme: nextTheme },
+        theme: resolved,
+        settings: { ...prev.settings, theme: resolved },
       }));
     }
-  }, [snapshot.authSession.username, snapshot.theme]);
+  }, [snapshot.authSession.username]);
+
+  const resetLayouts = useCallback(() => {
+    resetLayout(snapshot.authSession.username, "dashboard");
+    resetLayout(snapshot.authSession.username, "workspace-monitor");
+  }, [snapshot.authSession.username]);
 
   const exportDiagnostics = useCallback(async () => {
     try {
@@ -969,14 +942,14 @@ function AppController() {
           }
           logs={<LogsPage logs={snapshot.logs} onExportDiagnostics={exportDiagnostics} />}
           settings={
-            <SettingsPageV2
+            <SettingsPage
               snapshot={snapshot}
               users={users}
               diagnosticsPath={diagnosticsPath}
               migrationSource={migrationSource}
               migrationPreview={migrationPreview}
               migrationReport={migrationReport}
-              onToggleTheme={toggleTheme}
+              onThemePreferenceChange={setThemePreference}
               onExportDiagnostics={exportDiagnostics}
               onMigrationSourceChange={setMigrationSource}
               onPreviewMigration={previewMigration}
@@ -984,6 +957,7 @@ function AppController() {
               onCreateUser={createUserAccount}
               onResetUserPassword={resetUserPassword}
               onSetUserDisabled={setUserDisabled}
+              onResetLayouts={resetLayouts}
             />
           }
         />
@@ -1007,478 +981,6 @@ function AppController() {
           onCancel={safeCommand.cancel}
         />
       </AppShell>
-    </div>
-  );
-}
-
-function SettingsPage({
-  snapshot,
-  users,
-  diagnosticsPath,
-  migrationSource,
-  migrationPreview,
-  migrationReport,
-  onToggleTheme,
-  onExportDiagnostics,
-  onMigrationSourceChange,
-  onPreviewMigration,
-  onRunMigration,
-  onCreateUser,
-  onResetUserPassword,
-  onSetUserDisabled,
-}: {
-  snapshot: RuntimeSnapshot;
-  users: UserAccount[];
-  diagnosticsPath: string;
-  migrationSource: string;
-  migrationPreview: LegacyMigrationPreview | null;
-  migrationReport: LegacyMigrationReport | null;
-  onToggleTheme: () => void;
-  onExportDiagnostics: () => void;
-  onMigrationSourceChange: (value: string) => void;
-  onPreviewMigration: () => void;
-  onRunMigration: () => void;
-  onCreateUser: (username: string, password: string, role: Role) => Promise<void>;
-  onResetUserPassword: (username: string, newPassword: string) => Promise<void>;
-  onSetUserDisabled: (username: string, disabled: boolean) => Promise<void>;
-}) {
-  const migrationTotal = migrationPreview
-    ? migrationPreview.userFiles + migrationPreview.configFiles + migrationPreview.csvFiles + migrationPreview.logFiles
-    : 0;
-  const canManageUsers = snapshot.authSession.permissions.includes("manageUsers");
-  const [newUsername, setNewUsername] = useState("");
-  const [newUserPassword, setNewUserPassword] = useState("");
-  const [newUserRole, setNewUserRole] = useState<Role>("operator");
-  const [resetUsername, setResetUsername] = useState("");
-  const [resetPassword, setResetPassword] = useState("");
-  const [accountMessage, setAccountMessage] = useState("");
-
-  const runAccountAction = async (action: () => Promise<void>, successMessage: string) => {
-    setAccountMessage("");
-    try {
-      await action();
-      setAccountMessage(successMessage);
-    } catch (invokeError) {
-      setAccountMessage(invokeError instanceof Error ? invokeError.message : String(invokeError));
-    }
-  };
-
-  const submitCreateUser = async (event: FormEvent) => {
-    event.preventDefault();
-    await runAccountAction(async () => {
-      await onCreateUser(newUsername, newUserPassword, newUserRole);
-      setNewUsername("");
-      setNewUserPassword("");
-      setNewUserRole("operator");
-    }, "用户已创建");
-  };
-
-  const submitResetPassword = async (event: FormEvent) => {
-    event.preventDefault();
-    await runAccountAction(async () => {
-      await onResetUserPassword(resetUsername, resetPassword);
-      setResetPassword("");
-    }, "密码已重置");
-  };
-
-  return (
-    <div className="page-grid settings-grid">
-      <Panel title="应用配置" subtitle="settings" icon={Settings2} wide>
-        <div className="settings-stack">
-          <div className="stack-item">
-            <span>主题</span>
-            <strong>{snapshot.settings.theme}</strong>
-          </div>
-          <div className="stack-item">
-            <span>界面密度</span>
-            <strong>{snapshot.settings.workspaceDensity}</strong>
-          </div>
-          <div className="stack-item">
-            <span>数据目录</span>
-            <strong>{snapshot.settings.dataDirectory}</strong>
-          </div>
-          <div className="stack-item">
-            <span>模型目录</span>
-            <strong>{snapshot.settings.modelDirectory}</strong>
-          </div>
-          <div className="stack-item">
-            <span>自动重连</span>
-            <strong>{snapshot.settings.autoReconnect ? "启用" : "关闭"}</strong>
-          </div>
-          <div className="stack-item">
-            <span>诊断级别</span>
-            <strong>{snapshot.settings.diagnosticsLevel}</strong>
-          </div>
-        </div>
-      </Panel>
-
-      <Panel title="账户与权限" subtitle="auth" icon={Fingerprint}>
-        <div className="settings-stack">
-          <div className="stack-item">
-            <span>当前用户</span>
-            <strong>{snapshot.authSession.authenticated ? snapshot.authSession.username : "未登录"}</strong>
-          </div>
-          <div className="stack-item">
-            <span>角色</span>
-            <strong>{snapshot.authSession.role}</strong>
-          </div>
-          <div className="stack-item">
-            <span>用户数量</span>
-            <strong>{users.length || "无权限查看"}</strong>
-          </div>
-          {canManageUsers ? (
-            <>
-              <div className="settings-user-list">
-                {users.map((user) => (
-                  <div className="settings-user-row" key={user.username}>
-                    <div className="settings-user-main">
-                      <strong>{user.username}</strong>
-                      <span>{user.role}{user.mustChangePassword ? " / 需改密" : ""}</span>
-                    </div>
-                    <Badge tone={user.disabled ? "error" : "ok"}>{user.disabled ? "停用" : "启用"}</Badge>
-                    <button
-                      type="button"
-                      className="ghost-btn"
-                      onClick={() => void runAccountAction(
-                        () => onSetUserDisabled(user.username, !user.disabled),
-                        user.disabled ? "用户已启用" : "用户已停用",
-                      )}
-                      disabled={user.username === snapshot.authSession.username}
-                    >
-                      <span>{user.disabled ? "启用" : "停用"}</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <form className="account-form" onSubmit={submitCreateUser}>
-                <label>
-                  <span>新用户</span>
-                  <input value={newUsername} onChange={(event) => setNewUsername(event.target.value)} placeholder="operator_1" />
-                </label>
-                <label>
-                  <span>初始密码</span>
-                  <input type="password" value={newUserPassword} onChange={(event) => setNewUserPassword(event.target.value)} />
-                </label>
-                <label>
-                  <span>角色</span>
-                  <select value={newUserRole} onChange={(event) => setNewUserRole(event.target.value as Role)}>
-                    <option value="operator">operator</option>
-                    <option value="maintainer">maintainer</option>
-                    <option value="admin">admin</option>
-                  </select>
-                </label>
-                <button type="submit" className="primary-btn full" disabled={!newUsername.trim() || newUserPassword.length < 8}>
-                  <CheckCircle2 size={16} />
-                  <span>创建用户</span>
-                </button>
-              </form>
-
-              <form className="account-form" onSubmit={submitResetPassword}>
-                <label>
-                  <span>重置用户</span>
-                  <select value={resetUsername} onChange={(event) => setResetUsername(event.target.value)}>
-                    <option value="">选择用户</option>
-                    {users.map((user) => (
-                      <option value={user.username} key={user.username}>{user.username}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>新密码</span>
-                  <input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} />
-                </label>
-                <button type="submit" className="ghost-btn full" disabled={!resetUsername || resetPassword.length < 8}>
-                  <Save size={16} />
-                  <span>重置密码</span>
-                </button>
-              </form>
-            </>
-          ) : (
-            <div className="settings-result">当前角色没有用户管理权限。</div>
-          )}
-          {accountMessage ? <div className="settings-result">{accountMessage}</div> : null}
-        </div>
-      </Panel>
-
-      <Panel title="诊断导出" subtitle="diagnostics" icon={PauseCircle}>
-        <div className="button-stack">
-          <button type="button" className="ghost-btn full" onClick={onToggleTheme}>
-            <SunMedium size={16} />
-            <span>切换主题</span>
-          </button>
-          <button type="button" className="ghost-btn full" onClick={onExportDiagnostics}>
-            <Cpu size={16} />
-            <span>导出诊断包</span>
-          </button>
-        </div>
-        {diagnosticsPath ? <div className="settings-result">{diagnosticsPath}</div> : null}
-      </Panel>
-
-      <Panel title="旧版迁移" subtitle="migration" icon={Database} wide>
-        <div className="migration-form">
-          <label>
-            <span>旧版目录</span>
-            <input
-              type="text"
-              value={migrationSource}
-              onChange={(event) => onMigrationSourceChange(event.target.value)}
-              placeholder="例如 D:\\...\\SoftUI"
-            />
-          </label>
-          <button type="button" className="ghost-btn" onClick={onPreviewMigration}>
-            <Eye size={16} />
-            <span>预览</span>
-          </button>
-          <button type="button" className="primary-btn" onClick={onRunMigration} disabled={!migrationPreview?.exists}>
-            <Database size={16} />
-            <span>执行迁移</span>
-          </button>
-        </div>
-
-        {migrationPreview ? (
-          <div className="migration-summary">
-            <div><span>用户</span><strong>{migrationPreview.userFiles}</strong></div>
-            <div><span>配置</span><strong>{migrationPreview.configFiles}</strong></div>
-            <div><span>CSV</span><strong>{migrationPreview.csvFiles}</strong></div>
-            <div><span>日志</span><strong>{migrationPreview.logFiles}</strong></div>
-            <div><span>可迁移</span><strong>{migrationTotal}</strong></div>
-            <div><span>跳过</span><strong>{migrationPreview.skippedFiles}</strong></div>
-          </div>
-        ) : null}
-
-        {migrationPreview?.warnings.length ? (
-          <div className="settings-warning">
-            {migrationPreview.warnings.slice(0, 3).map((warning) => (
-              <span key={warning}>{warning}</span>
-            ))}
-          </div>
-        ) : null}
-
-        {migrationReport ? <div className="settings-result">报告：{migrationReport.reportPath}</div> : null}
-      </Panel>
-    </div>
-  );
-}
-
-type SettingsPageV2Props = Parameters<typeof SettingsPage>[0];
-
-function SettingsPageV2({
-  snapshot,
-  users,
-  diagnosticsPath,
-  migrationSource,
-  migrationPreview,
-  migrationReport,
-  onToggleTheme,
-  onExportDiagnostics,
-  onMigrationSourceChange,
-  onPreviewMigration,
-  onRunMigration,
-  onCreateUser,
-  onResetUserPassword,
-  onSetUserDisabled,
-}: SettingsPageV2Props) {
-  const migrationTotal = migrationPreview
-    ? migrationPreview.userFiles + migrationPreview.configFiles + migrationPreview.csvFiles + migrationPreview.logFiles
-    : 0;
-  const canManageUsers = snapshot.authSession.permissions.includes("manageUsers");
-  const [newUsername, setNewUsername] = useState("");
-  const [newUserPassword, setNewUserPassword] = useState("");
-  const [newUserRole, setNewUserRole] = useState<Role>("operator");
-  const [resetUsername, setResetUsername] = useState("");
-  const [resetPassword, setResetPassword] = useState("");
-  const [accountMessage, setAccountMessage] = useState("");
-
-  const runAccountAction = async (action: () => Promise<void>, successMessage: string) => {
-    setAccountMessage("");
-    try {
-      await action();
-      setAccountMessage(successMessage);
-    } catch (invokeError) {
-      setAccountMessage(invokeError instanceof Error ? invokeError.message : String(invokeError));
-    }
-  };
-
-  const submitCreateUser = async (event: FormEvent) => {
-    event.preventDefault();
-    await runAccountAction(async () => {
-      await onCreateUser(newUsername, newUserPassword, newUserRole);
-      setNewUsername("");
-      setNewUserPassword("");
-      setNewUserRole("operator");
-    }, "用户已创建");
-  };
-
-  const submitResetPassword = async (event: FormEvent) => {
-    event.preventDefault();
-    await runAccountAction(async () => {
-      await onResetUserPassword(resetUsername, resetPassword);
-      setResetPassword("");
-    }, "密码已重置");
-  };
-
-  return (
-    <div className="page-grid settings-grid">
-      <Panel title="应用配置" subtitle="settings" icon={Settings2} wide>
-        <div className="settings-config-grid kv-grid">
-          <div className="kv-item"><span>主题</span><strong>{snapshot.settings.theme}</strong></div>
-          <div className="kv-item"><span>界面密度</span><strong>{snapshot.settings.workspaceDensity}</strong></div>
-          <div className="kv-item"><span>自动重连</span><strong>{snapshot.settings.autoReconnect ? "启用" : "关闭"}</strong></div>
-          <div className="kv-item"><span>诊断级别</span><strong>{snapshot.settings.diagnosticsLevel}</strong></div>
-          <div className="kv-item path-item">
-            <span>数据目录</span>
-            <strong className="path-value" title={snapshot.settings.dataDirectory}>{snapshot.settings.dataDirectory}</strong>
-          </div>
-          <div className="kv-item path-item">
-            <span>模型目录</span>
-            <strong className="path-value" title={snapshot.settings.modelDirectory}>{snapshot.settings.modelDirectory}</strong>
-          </div>
-        </div>
-      </Panel>
-
-      <Panel title="账户与权限" subtitle="auth" icon={Fingerprint}>
-        <div className="settings-stack">
-          <div className="kv-grid account-summary-grid">
-            <div className="kv-item">
-              <span>当前用户</span>
-              <strong>{snapshot.authSession.authenticated ? snapshot.authSession.username : "未登录"}</strong>
-            </div>
-            <div className="kv-item"><span>角色</span><strong>{snapshot.authSession.role}</strong></div>
-            <div className="kv-item"><span>用户数量</span><strong>{users.length || "无权限查看"}</strong></div>
-          </div>
-
-          {canManageUsers ? (
-            <>
-              <div className="settings-user-list layout-scroll">
-                {users.map((user) => (
-                  <div className="settings-user-row" key={user.username}>
-                    <div className="settings-user-main">
-                      <strong className="text-truncate" title={user.username}>{user.username}</strong>
-                      <span>{user.role}{user.mustChangePassword ? " / 需改密" : ""}</span>
-                    </div>
-                    <Badge tone={user.disabled ? "error" : "ok"}>{user.disabled ? "停用" : "启用"}</Badge>
-                    <button
-                      type="button"
-                      className="ghost-btn"
-                      onClick={() => void runAccountAction(
-                        () => onSetUserDisabled(user.username, !user.disabled),
-                        user.disabled ? "用户已启用" : "用户已停用",
-                      )}
-                      disabled={user.username === snapshot.authSession.username}
-                    >
-                      <span>{user.disabled ? "启用" : "停用"}</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <form className="account-form" onSubmit={submitCreateUser}>
-                <label>
-                  <span>新用户</span>
-                  <input value={newUsername} onChange={(event) => setNewUsername(event.target.value)} placeholder="operator_1" />
-                </label>
-                <label>
-                  <span>初始密码</span>
-                  <input type="password" value={newUserPassword} onChange={(event) => setNewUserPassword(event.target.value)} />
-                </label>
-                <label>
-                  <span>角色</span>
-                  <select value={newUserRole} onChange={(event) => setNewUserRole(event.target.value as Role)}>
-                    <option value="operator">operator</option>
-                    <option value="maintainer">maintainer</option>
-                    <option value="admin">admin</option>
-                  </select>
-                </label>
-                <button type="submit" className="primary-btn full" disabled={!newUsername.trim() || newUserPassword.length < 8}>
-                  <CheckCircle2 size={16} />
-                  <span>创建用户</span>
-                </button>
-              </form>
-
-              <form className="account-form" onSubmit={submitResetPassword}>
-                <label>
-                  <span>重置用户</span>
-                  <select value={resetUsername} onChange={(event) => setResetUsername(event.target.value)}>
-                    <option value="">选择用户</option>
-                    {users.map((user) => (
-                      <option value={user.username} key={user.username}>{user.username}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>新密码</span>
-                  <input type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} />
-                </label>
-                <button type="submit" className="ghost-btn full" disabled={!resetUsername || resetPassword.length < 8}>
-                  <Save size={16} />
-                  <span>重置密码</span>
-                </button>
-              </form>
-            </>
-          ) : (
-            <div className="settings-result">当前角色没有用户管理权限。</div>
-          )}
-          {accountMessage ? <div className="settings-result">{accountMessage}</div> : null}
-        </div>
-      </Panel>
-
-      <Panel title="诊断导出" subtitle="diagnostics" icon={PauseCircle}>
-        <div className="button-stack">
-          <button type="button" className="ghost-btn full" onClick={onToggleTheme}>
-            <SunMedium size={16} />
-            <span>切换主题</span>
-          </button>
-          <button type="button" className="ghost-btn full" onClick={onExportDiagnostics}>
-            <Cpu size={16} />
-            <span>导出诊断包</span>
-          </button>
-        </div>
-        {diagnosticsPath ? <div className="settings-result path-value" title={diagnosticsPath}>{diagnosticsPath}</div> : null}
-      </Panel>
-
-      <Panel title="旧版迁移" subtitle="migration" icon={Database} wide>
-        <div className="migration-form">
-          <label>
-            <span>旧版目录</span>
-            <input
-              type="text"
-              value={migrationSource}
-              onChange={(event) => onMigrationSourceChange(event.target.value)}
-              placeholder="例如 D:\\...\\SoftUI"
-            />
-          </label>
-          <button type="button" className="ghost-btn" onClick={onPreviewMigration}>
-            <Eye size={16} />
-            <span>预览</span>
-          </button>
-          <button type="button" className="primary-btn" onClick={onRunMigration} disabled={!migrationPreview?.exists}>
-            <Database size={16} />
-            <span>执行迁移</span>
-          </button>
-        </div>
-
-        {migrationPreview ? (
-          <div className="migration-summary">
-            <div><span>用户</span><strong>{migrationPreview.userFiles}</strong></div>
-            <div><span>配置</span><strong>{migrationPreview.configFiles}</strong></div>
-            <div><span>CSV</span><strong>{migrationPreview.csvFiles}</strong></div>
-            <div><span>日志</span><strong>{migrationPreview.logFiles}</strong></div>
-            <div><span>可迁移</span><strong>{migrationTotal}</strong></div>
-            <div><span>跳过</span><strong>{migrationPreview.skippedFiles}</strong></div>
-          </div>
-        ) : null}
-
-        {migrationPreview?.warnings.length ? (
-          <div className="settings-warning">
-            {migrationPreview.warnings.slice(0, 3).map((warning) => (
-              <span key={warning}>{warning}</span>
-            ))}
-          </div>
-        ) : null}
-
-        {migrationReport ? <div className="settings-result path-value" title={migrationReport.reportPath}>报告：{migrationReport.reportPath}</div> : null}
-      </Panel>
     </div>
   );
 }
