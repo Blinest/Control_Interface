@@ -1,15 +1,15 @@
 :root,
 :root[data-theme="light"] {
   --surface-page: #edf2f6;
-  --surface-sidebar: #263846;
+  --surface-sidebar: #e4eaf0;
   --surface-panel: #ffffff;
   --surface-overlay: #ffffff;
   --text-primary: #213241;
   --text-secondary: #5c6d7b;
   --text-muted: #5f6e7a;
   --text-inverse: #f1f6fa;
-  --text-sidebar: #f1f6fa;
-  --text-sidebar-muted: #d1dee6;
+  --text-sidebar: #213241;
+  --text-sidebar-muted: #4d5f6d;
   --border-default: #c9d5df;
   --border-subtle: #dce4ea;
   --focus-ring: #2f78b8;
@@ -30,7 +30,7 @@
 
 :root[data-theme="dark"] {
   --surface-page: #171f25;
-  --surface-sidebar: #0f151a;
+  --surface-sidebar: #1b242b;
   --surface-panel: #202930;
   --surface-overlay: #27323a;
   --text-primary: #e5edf3;

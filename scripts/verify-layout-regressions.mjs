@@ -15,6 +15,8 @@ const shell = readFileSync(new URL("../src/styles/shell.css", import.meta.url), 
 assert.match(shell, /\.global-status-bar[\s\S]*min-width:\s*0/, "global status bar must constrain its flexible content");
 assert.match(shell, /\.emergency-stop-button[\s\S]*flex:\s*0\s+0\s+auto/, "emergency stop must remain visible beside status details");
 assert.match(shell, /\.app-page-content[\s\S]*overflow:\s*auto/, "shell content must scroll without clipping page controls");
+assert.match(shell, /grid-template-columns: 224px/, "sidebar must stay fixed width");
+assert.doesNotMatch(shell, /@media \(max-width: 1439px\)/, "sidebar must not auto-collapse");
 assert.match(css, /\.empty-state[\s\S]*min-height/, "shared empty state must reserve stable space");
 assert.match(css, /\.path-value[\s\S]*(overflow-wrap|word-break):\s*anywhere/, "path values must wrap safely");
 assert.match(css, /\.primary-btn:disabled[\s\S]*color:/, "primary disabled button needs explicit text color");

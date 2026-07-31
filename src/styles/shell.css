@@ -14,10 +14,6 @@
 .app-content { grid-column: 2; min-width: 0; min-height: 0; overflow: hidden; }
 .app-footer { grid-column: 2; min-width: 0; }
 
-@media (max-width: 1439px) {
-  .app-shell { grid-template-columns: 72px minmax(0, 1fr); }
-}
-
 .app-sidebar {
   display: flex;
   flex-direction: column;
@@ -73,7 +69,7 @@
 .sidebar-nav-link:hover,
 .sidebar-nav-link.is-active {
   border-color: var(--border-default);
-  background: var(--surface-overlay);
+  background: var(--surface-page);
   color: var(--text-primary);
 }
 
@@ -203,13 +199,4 @@
   background: var(--surface-panel);
   font-size: 12px;
   white-space: nowrap;
-}
-
-@media (max-width: 1439px) {
-  .sidebar-brand { justify-content: center; padding: 0; font-size: 0; }
-  .sidebar-brand::first-letter { font-size: 16px; }
-  .sidebar-nav { padding: 16px 8px; }
-  .sidebar-nav-group h2,
-  .sidebar-nav-link span { display: none; }
-  .sidebar-nav-link { justify-content: center; padding: 0; }
 }
