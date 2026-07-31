@@ -4,6 +4,7 @@ import "uplot/dist/uPlot.min.css";
 import { Crosshair } from "lucide-react";
 import type { DeviceSnapshot, RuntimeSnapshot, SessionInfo } from "../../softuiTypes";
 import { ChartLayout } from "../../layouts/ChartLayout";
+import { createSerialRunner } from "../../lib/serialRunner";
 import { tauriClient } from "../../services/tauriClient";
 import { ChannelSidebar, type ChannelGroup, type ChannelMeta } from "./ChannelSidebar";
 import { ChartToolbar } from "./ChartToolbar";
@@ -191,6 +192,7 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
   const chartRef = useRef<uPlot | null>(null);
   const cursorFrameRef = useRef<number | null>(null);
   const lastRenderedChartKeyRef = useRef("");
+  const refreshRunnerRef = useRef(createSerialRunner());
   const [paused, setPaused] = useState(false);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("live");
@@ -440,15 +442,17 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
     if (selectedSessionId !== "live" || paused) return;
     let cancelled = false;
     const refresh = async () => {
-      try {
-        const frames = await loadLiveWindow(240, liveDeviceId);
-        if (!cancelled) {
-          setHistoryFrames(frames);
-          setChartError("");
+      await refreshRunnerRef.current(async () => {
+        try {
+          const frames = await loadLiveWindow(240, liveDeviceId);
+          if (!cancelled) {
+            setHistoryFrames(frames);
+            setChartError("");
+          }
+        } catch (error) {
+          if (!cancelled) setChartError(error instanceof Error ? error.message : String(error));
         }
-      } catch (error) {
-        if (!cancelled) setChartError(error instanceof Error ? error.message : String(error));
-      }
+      });
     };
     void refresh();
     const id = window.setInterval(() => void refresh(), 500);

@@ -15,6 +15,7 @@ import { DashboardPage } from "./features/dashboard/DashboardPage";
 import ChartsPage from "./features/charts/ChartsPage";
 import LogsPage from "./features/logs/LogsPage";
 import SettingsPage from "./features/settings/SettingsPage";
+import { createSerialRunner } from "./lib/serialRunner";
 import {
   createConfirmationSafetyContext,
   getLatchedDeviceIds,
@@ -156,6 +157,7 @@ function AppController() {
   const [currentDeviceId, setCurrentDeviceId] = useState(() => localStorage.getItem("softui:currentDeviceId") ?? "");
   const currentDeviceIdRef = useRef(currentDeviceId);
   const connectedDevicesRefreshIdRef = useRef(0);
+  const tickRunnerRef = useRef(createSerialRunner());
   const [serialPorts, setSerialPorts] = useState<SerialPortDescriptor[]>([]);
   const [connectedDevices, setConnectedDevices] = useState<DeviceConnectionRecord[]>([]);
   const [deviceStatuses, setDeviceStatuses] = useState<Record<string, DeviceRuntimeStatusView>>({});
@@ -249,7 +251,7 @@ function AppController() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      void fetchSnapshot("tick_snapshot");
+      void tickRunnerRef.current(() => fetchSnapshot("tick_snapshot"));
     }, 1000);
     return () => window.clearInterval(timer);
   }, [fetchSnapshot]);
