@@ -25,13 +25,13 @@ assert.match(
 
 assert.match(
   app,
-  /writeThemePreference\(snapshot\.authSession\.username,\s*nextTheme\)/,
+  /writeThemePreference\(snapshot\.authSession\.username,\s*preference\)/,
   "theme toggles should persist the selected theme for the authenticated user",
 );
 
 assert.match(
   app,
-  /applyTheme\(nextTheme\)/,
+  /applyTheme\(resolved\)/,
   "theme toggles should update the DOM theme and color scheme immediately",
 );
 
