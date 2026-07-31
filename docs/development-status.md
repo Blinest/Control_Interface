@@ -6,7 +6,7 @@
 
 当前工作区：`D:\APP\ControlUI\softui-desktop\.worktrees\ui-foundation-shell`
 
-当前 HEAD：`ed203b4 fix: bound pending command queue`
+当前 HEAD：`4dbcc3f chore: remove legacy page layout css`
 
 ## 一、当前开发状态
 
@@ -101,12 +101,33 @@
 - Rust 测试：97 个通过。
 - release 构建：`softui-desktop.exe`、MSI、NSIS 安装包生成成功。
 
-### 6. 已知未收口事项
+### 6. 布局与外观修复（已完成）
+
+已完成：
+
+- 侧边栏改为与工作区同色系，浅色/深色主题统一。
+- 移除侧边栏自动缩回，侧栏保持固定宽度。
+- 隐藏全部可见滚动条，保留内部滚轮与触控滚动。
+- 修复曲线通道勾选项被裁剪的问题。
+- 卡片布局改为拖拽调整大小，删除尺寸按钮菜单。
+- 移除顶部重复导航，侧栏作为唯一导航。
+- 设置页内容占满主区域，总览卡片按内容自适应高度。
+- 清理旧 App.css 死样式约 704 行，统一圆角 token。
+
+验证结果：
+
+- 前端单元测试：28 个文件、110 个测试通过。
+- UI 回归、布局回归：通过。
+- Rust 测试：97 个通过。
+- 构建：通过。
+
+### 7. 已知未收口事项
 
 - Phase 2 的最终整体验收评审子任务曾启动，但在用户中断前尚未返回最终文本。当前本地验证已经通过，但还没有拿到该子评审的最终报告。
 - `npm.cmd run build` 存在 Vite chunk 体积警告，当前不影响构建，但后续可以通过动态导入或 manualChunks 优化。
 - Phase 3 五个任务已全部完成并提交，对应计划文件仍保留在 `docs\superpowers\plans` 下。
 - Phase 4/5 完成，对应计划文件为 `docs\superpowers\plans\2026-07-31-stability-runtime-completion.md`。
+- 布局与外观修复完成，对应计划文件为 `docs\superpowers\plans\2026-07-31-layout-appearance-fix.md`。
 
 ## 二、当前外观与布局改造方向
 
