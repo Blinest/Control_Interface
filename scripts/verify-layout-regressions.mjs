@@ -5,6 +5,7 @@ const css = readFileSync(new URL("../src/App.css", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const sessions = readFileSync(new URL("../src/features/sessions/SessionsPage.tsx", import.meta.url), "utf8");
 const sessionsCss = readFileSync(new URL("../src/features/sessions/sessions.css", import.meta.url), "utf8");
+const chartsCss = readFileSync(new URL("../src/features/charts/charts.css", import.meta.url), "utf8");
 const logs = readFileSync(new URL("../src/features/logs/LogsPage.tsx", import.meta.url), "utf8");
 const logsCss = readFileSync(new URL("../src/features/logs/logs.css", import.meta.url), "utf8");
 const logFilters = readFileSync(new URL("../src/features/logs/logFilters.ts", import.meta.url), "utf8");
@@ -27,6 +28,7 @@ assert.match(sessionsCss, /\.recorder-workbench/, "sessions page needs a full-he
 assert.match(sessionsCss, /\.sessions-table-region[\s\S]*overflow:\s*auto/, "session history table must scroll internally");
 assert.match(logsCss, /\.logs-toolbar/, "logs page needs a table-style toolbar");
 assert.match(logsCss, /\.logs-table-region[\s\S]*overflow:\s*auto/, "logs table must scroll internally");
+assert.match(chartsCss, /\.channel-item\s*\{[\s\S]*min-width:\s*0/, "chart channel rows must not clip checkboxes");
 assert.match(logs, /TableLayout/, "LogsPage must use table-style page layout");
 for (const label of ["warning", "error", "info", "bug"]) {
   assert.match(logFilters, new RegExp(`"${label}"`), `logs page needs ${label} filter`);

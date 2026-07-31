@@ -20,3 +20,24 @@
 .chart-layout .charts-toolbar {
   width: 100%;
 }
+
+.chart-layout .channel-items,
+.chart-layout .channel-item {
+  min-width: 0;
+}
+
+.chart-layout .channel-item input[type="checkbox"] {
+  flex-shrink: 0;
+}
+
+.chart-layout .channel-name {
+  flex: 1 1 auto;
+}
+
+.chart-layout .channel-unit {
+  flex-shrink: 0;
+}
+
+.chart-layout .charts-sidebar {
+  overflow-x: hidden;
+}
