@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CardLayoutEditor } from "./CardLayoutEditor";
@@ -11,7 +11,7 @@ describe("CardLayoutEditor", () => {
     vi.restoreAllMocks();
   });
 
-  it("changes a card only to an allowed preset size", async () => {
+  it("resizes a card by dragging its resize handle", async () => {
     const save = vi.fn();
     const user = userEvent.setup();
 
@@ -24,16 +24,16 @@ describe("CardLayoutEditor", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "调整连接状态卡片大小" }));
-    await user.click(screen.getByRole("button", { name: "宽 2×1" }));
+    const handle = screen.getByRole("button", { name: "调整连接状态卡片大小" });
+    fireEvent.pointerDown(handle, { clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientX: 40, clientY: 40, pointerId: 1 });
+    fireEvent.pointerUp(handle, { pointerId: 1 });
     await user.click(screen.getByRole("button", { name: "保存布局" }));
 
-    expect(save.mock.calls[0][0].cards.find((card: { id: string }) => card.id === "connection").size).toBe("2x1");
+    expect(save.mock.calls[0][0].cards.find((card: { id: string }) => card.id === "connection").size).toBe("2x2");
   });
 
-  it("offers exactly the four allowed preset sizes as native buttons", async () => {
-    const user = userEvent.setup();
-
+  it("uses a drag handle instead of a size menu", () => {
     render(
       <CardLayoutEditor
         layout={defaultDashboardLayout}
@@ -43,18 +43,8 @@ describe("CardLayoutEditor", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "调整连接状态卡片大小" }));
-
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-    const sizeList = screen.getByRole("list", { name: "连接状态卡片尺寸" });
-
-    expect(within(sizeList).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "小 1×1",
-      "宽 2×1",
-      "高 1×2",
-      "大 2×2",
-    ]);
-    expect(within(sizeList).getByRole("button", { name: "小 1×1" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "调整连接状态卡片大小" })).toBeVisible();
+    expect(screen.queryByRole("list", { name: "连接状态卡片尺寸" })).not.toBeInTheDocument();
   });
 
   it("reorders cards with the focused keyboard drag handle", async () => {

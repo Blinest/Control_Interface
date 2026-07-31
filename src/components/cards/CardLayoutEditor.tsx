@@ -16,7 +16,7 @@ import {
 import { RotateCcw } from "lucide-react";
 import { useState } from "react";
 import type { CardPlacement, CardSize, PageLayout } from "../../softuiTypes";
-import { CardSizeMenu } from "./CardSizeMenu";
+import { CardResizeHandle } from "./CardResizeHandle";
 import { SortableCard } from "./SortableCard";
 import "./cards.css";
 
@@ -102,9 +102,9 @@ export function CardLayoutEditor({ layout, onSave, onCancel, onReset }: CardLayo
                 >
                   <div className="card-layout-card-title">
                     <h3>{cardLabel}</h3>
-                    <CardSizeMenu
-                      cardLabel={cardLabel}
-                      onChange={(size) => updateSize(card.id, size)}
+                    <CardResizeHandle
+                      label={`调整${cardLabel}卡片大小`}
+                      onResize={(size) => updateSize(card.id, size)}
                       size={card.size}
                     />
                   </div>

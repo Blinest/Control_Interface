@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageLayout } from "../../softuiTypes";
@@ -110,8 +110,10 @@ describe("DeviceWorkspacePage", () => {
 
     expect(screen.getByLabelText("三维模型视图")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "编辑布局" }));
-    await user.click(screen.getByRole("button", { name: "调整三维模型卡片大小" }));
-    await user.click(screen.getByRole("button", { name: "宽 2×1" }));
+    const resizeHandle = screen.getByRole("button", { name: "调整三维模型卡片大小" });
+    fireEvent.pointerDown(resizeHandle, { clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(resizeHandle, { clientX: 40, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(resizeHandle, { pointerId: 1 });
     await user.click(screen.getByRole("button", { name: "保存布局" }));
 
     const saved = JSON.parse(

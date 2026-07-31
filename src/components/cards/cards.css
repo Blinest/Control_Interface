@@ -94,6 +94,25 @@
   cursor: grabbing;
 }
 
+.card-resize-handle {
+  display: inline-grid;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  place-items: center;
+  border-color: var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.card-resize-handle:hover {
+  background: var(--surface-page);
+}
+
 .card-size-options {
   position: absolute;
   z-index: 2;
