@@ -447,4 +447,61 @@ mod tests {
         assert_eq!(descriptor.port_type, "bluetooth");
         assert!(!descriptor.likely_available);
     }
+
+    fn config_with_data_bits(data_bits: u8) -> SerialConnectionConfig {
+        SerialConnectionConfig {
+            port_name: "COM1".to_string(),
+            baud_rate: 9600,
+            data_bits,
+            parity: "none".to_string(),
+            stop_bits: 1,
+            flow_control: "none".to_string(),
+            timeout_ms: 50,
+        }
+    }
+
+    #[test]
+    fn rejects_unsupported_data_bits() {
+        let error = match SerialTransport::open(config_with_data_bits(6)) {
+            Err(error) => error,
+            Ok(_) => panic!("must reject unsupported data bits"),
+        };
+        assert!(matches!(error, TransportError::Serial(_)));
+    }
+
+    #[test]
+    fn rejects_unsupported_parity() {
+        let mut config = config_with_data_bits(8);
+        config.parity = "mark".to_string();
+
+        let error = match SerialTransport::open(config) {
+            Err(error) => error,
+            Ok(_) => panic!("must reject unsupported parity"),
+        };
+        assert!(matches!(error, TransportError::Serial(_)));
+    }
+
+    #[test]
+    fn rejects_unsupported_stop_bits() {
+        let mut config = config_with_data_bits(8);
+        config.stop_bits = 0;
+
+        let error = match SerialTransport::open(config) {
+            Err(error) => error,
+            Ok(_) => panic!("must reject unsupported stop bits"),
+        };
+        assert!(matches!(error, TransportError::Serial(_)));
+    }
+
+    #[test]
+    fn rejects_unsupported_flow_control() {
+        let mut config = config_with_data_bits(8);
+        config.flow_control = "rts".to_string();
+
+        let error = match SerialTransport::open(config) {
+            Err(error) => error,
+            Ok(_) => panic!("must reject unsupported flow control"),
+        };
+        assert!(matches!(error, TransportError::Serial(_)));
+    }
 }
