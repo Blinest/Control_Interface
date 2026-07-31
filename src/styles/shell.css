@@ -189,7 +189,7 @@
 
 .app-page-content {
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .app-footer {
