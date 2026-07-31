@@ -17,6 +17,7 @@ const base = readFileSync(new URL("../src/styles/base.css", import.meta.url), "u
 
 assert.match(shell, /\.global-status-bar[\s\S]*min-width:\s*0/, "global status bar must constrain its flexible content");
 assert.match(shell, /\.emergency-stop-button[\s\S]*flex:\s*0\s+0\s+auto/, "emergency stop must remain visible beside status details");
+assert.match(shell, /\.app-content\s*\{[\s\S]*grid-template-rows:\s*minmax\(0,\s*1fr\)/, "app content must keep a definite content row");
 assert.match(shell, /\.app-page-content[\s\S]*overflow:\s*hidden/, "app page must not scroll at shell level");
 assert.match(base, /scrollbar-width:\s*none/, "visible scrollbars must be hidden");
 assert.doesNotMatch(shell, /\.page-tabs/, "top page tabs must be removed");
