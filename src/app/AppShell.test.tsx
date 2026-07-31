@@ -28,6 +28,7 @@ describe("AppShell", () => {
     emergencyStop.click();
     expect(onEmergencyStop).toHaveBeenCalledOnce();
     expect(screen.getByText("页面内容")).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: "页面标签" })).not.toBeInTheDocument();
   });
 
   it("calls logout from the authenticated account control", () => {

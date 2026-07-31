@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { AppFooter } from "../components/layout/AppFooter";
 import { GlobalStatusBar } from "../components/layout/GlobalStatusBar";
-import { PageTabs } from "../components/layout/PageTabs";
 import { SidebarNav } from "../components/layout/SidebarNav";
 import "../styles/shell.css";
 
@@ -44,7 +43,6 @@ export function AppShell({
         recording={recording}
       />
       <main className="app-content">
-        <PageTabs />
         <div className="app-page-content">{children}</div>
       </main>
       <AppFooter items={footerItems} />

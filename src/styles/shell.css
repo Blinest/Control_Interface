@@ -159,32 +159,8 @@
 }
 
 .app-content {
-  display: grid;
-  grid-template-rows: 40px minmax(0, 1fr);
-}
-
-.page-tabs {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  padding: 4px 16px;
-  border-bottom: 1px solid var(--border-default);
-  background: var(--surface-panel);
-}
-
-.page-tab {
-  flex: 0 0 auto;
-  min-height: 30px;
-  padding: 0 10px;
-  border-bottom: 2px solid transparent;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.page-tab:hover,
-.page-tab.is-active {
-  border-color: var(--action-primary);
-  color: var(--text-primary);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .app-page-content {
