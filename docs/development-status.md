@@ -1,12 +1,12 @@
 # SoftUI 当前开发总结与后续规划
 
-更新时间：2026-07-29
+更新时间：2026-07-31
 
 当前工作分支：`ui-foundation-shell`
 
 当前工作区：`D:\APP\ControlUI\softui-desktop\.worktrees\ui-foundation-shell`
 
-当前 HEAD：`55dbdb8 fix: isolate current device workspace data`
+当前 HEAD：`b21bc40 fix: keep ui regression aligned with theme preference flow`
 
 ## 一、当前开发状态
 
@@ -64,11 +64,29 @@
   - 当前设备的数据、播放状态、控制草稿已隔离，避免跨设备串数据。
   - 全局故障不放入可隐藏卡片，避免用户隐藏关键安全状态。
 
-### 4. 已知未收口事项
+### 4. Phase 3：数据页、日志页、设置页迁移（已完成）
+
+已完成：
+
+- 新增共享组件：EmptyState、PathValue、StatusBadge。
+- 曲线页迁移到 ChartLayout，拆出 ChannelSidebar 与 ChartToolbar。
+- 会话页迁移到录制工作台布局，历史表格内部滚动，删除会话走统一确认。
+- 日志页迁移到 TableLayout，实现 warning/error/info/bug 四级筛选和详情抽屉。
+- 设置页迁移到 SettingsLayout，按 6 个分类单页展示，长路径使用 PathValue。
+- 布局回归、UI 回归和全量单元测试均已更新并通过。
+
+验证结果：
+
+- `npm.cmd run test:unit`：25 个测试文件、104 个测试通过。
+- `npm.cmd run test:ui-regressions`：通过。
+- `npm.cmd run test:layout-regressions`：通过。
+- `npm.cmd run build`：通过，仅有 Vite chunk 体积警告。
+
+### 5. 已知未收口事项
 
 - Phase 2 的最终整体验收评审子任务曾启动，但在用户中断前尚未返回最终文本。当前本地验证已经通过，但还没有拿到该子评审的最终报告。
 - `npm.cmd run build` 存在 Vite chunk 体积警告，当前不影响构建，但后续可以通过动态导入或 manualChunks 优化。
-- Phase 3 计划文件已存在：`docs\superpowers\plans\2026-07-29-data-pages-settings-migration.md`。该计划在终端输出中出现编码显示异常，但文件仍可作为执行依据；建议后续必要时重新整理一版 UTF-8 中文计划。
+- Phase 3 五个任务已全部完成并提交，对应计划文件仍保留在 `docs\superpowers\plans` 下。
 
 ## 二、当前外观与布局改造方向
 
@@ -88,7 +106,9 @@
 
 ## 三、接下来开发规划
 
-### Phase 3：数据页、日志页、设置页迁移
+### Phase 3：数据页、日志页、设置页迁移（已完成）
+
+状态：已完成，执行结果见上文 Phase 3 完成记录。
 
 目标：把曲线、会话、日志、设置迁移到固定专业模板，彻底解决散乱卡片、大面积空白、长文本不可读和日志筛选不足问题。
 
