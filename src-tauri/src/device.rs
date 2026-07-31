@@ -71,6 +71,8 @@ pub struct CommandQueueResult {
     pub message: Option<String>,
 }
 
+pub const MAX_PENDING_COMMANDS: usize = 64;
+
 impl DeviceRegistry {
     pub fn new() -> Self {
         Self {
@@ -422,6 +424,7 @@ pub struct RuntimeStatus {
     pub protocol_stats: crate::protocol::ProtocolStats,
     pub sent_commands: u64,
     pub pending_commands: usize,
+    pub dropped_commands: u64,
     pub reconnect_attempts: u32,
     pub last_frame_ms: u64,
     pub last_command_ms: u64,
@@ -440,6 +443,7 @@ pub struct DeviceRuntime<T: Transport> {
     protocol_errors: u64,
     sent_commands: u64,
     pending_commands: VecDeque<Vec<u8>>,
+    dropped_commands: u64,
     reconnect_attempts: u32,
     last_reconnect_ms: u64,
     last_frame_ms: u64,
@@ -461,6 +465,7 @@ impl<T: Transport> DeviceRuntime<T> {
             protocol_errors: 0,
             sent_commands: 0,
             pending_commands: VecDeque::new(),
+            dropped_commands: 0,
             reconnect_attempts: 0,
             last_reconnect_ms: 0,
             last_frame_ms: 0,
@@ -481,6 +486,7 @@ impl<T: Transport> DeviceRuntime<T> {
             protocol_stats: self.codec.stats(),
             sent_commands: self.sent_commands,
             pending_commands: self.pending_commands.len(),
+            dropped_commands: self.dropped_commands,
             reconnect_attempts: self.reconnect_attempts,
             last_frame_ms: self.last_frame_ms,
             last_command_ms: self.last_command_ms,
@@ -573,7 +579,13 @@ impl<T: Transport> DeviceRuntime<T> {
 
     pub fn enqueue_command(&mut self, frame: Vec<u8>, priority: CommandPriority) {
         match priority {
-            CommandPriority::Normal => self.pending_commands.push_back(frame),
+            CommandPriority::Normal => {
+                if self.pending_commands.len() >= MAX_PENDING_COMMANDS {
+                    self.pending_commands.pop_front();
+                    self.dropped_commands = self.dropped_commands.saturating_add(1);
+                }
+                self.pending_commands.push_back(frame);
+            }
             CommandPriority::Emergency => {
                 self.pending_commands.clear();
                 self.pending_commands.push_front(frame);
@@ -977,5 +989,18 @@ mod tests {
                 "serial:COM404".to_string()
             ))
         );
+    }
+
+    #[test]
+    fn queue_has_bounded_capacity() {
+        let mut runtime = DeviceRuntime::new(SimulatorTransport::new().expect("simulator"));
+
+        for _ in 0..MAX_PENDING_COMMANDS + 5 {
+            runtime.enqueue_command(vec![0xAA], CommandPriority::Normal);
+        }
+
+        let status = runtime.status();
+        assert_eq!(status.pending_commands, MAX_PENDING_COMMANDS);
+        assert_eq!(status.dropped_commands, 5);
     }
 }
