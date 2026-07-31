@@ -39,7 +39,8 @@ assert.match(logFilters, /level === "debug"[\s\S]*\? "bug"/, "bug filter should 
 assert.match(settingsCss, /\.settings-navigation-tabs/, "settings page needs categorized navigation");
 assert.match(settings, /SettingsLayout/, "settings page must use categorized layout");
 assert.match(settingsCss, /\.settings-section\s*\{[\s\S]*max-width:\s*none/, "settings content should fill the main area");
-assert.match(dashboardCss, /grid-auto-rows:\s*minmax\(150px,\s*auto\)/, "dashboard cards should adapt to content");
+assert.match(dashboardCss, /grid-auto-rows:\s*minmax\(0,\s*1fr\)/, "dashboard cards should fill the available height");
+assert.match(dashboardCss, /\.feature-card-grid\s*\{[\s\S]*height:\s*100%/, "dashboard card grid should fill its container");
 for (const selector of ["settings-grid", "logs-page-layout", "sessions-page-layout", "charts-page-layout", "log-filter-bar"]) {
   assert.doesNotMatch(css, new RegExp(`\\.${selector}`), `legacy ${selector} must be removed from App.css`);
 }
