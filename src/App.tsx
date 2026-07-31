@@ -7,7 +7,6 @@ import {
   Database,
   Eye,
   Fingerprint,
-  Logs,
   PauseCircle,
   Save,
   Settings2,
@@ -22,6 +21,7 @@ import PlaybackBar from "./components/PlaybackBar";
 import { ConfirmDialog } from "./components/feedback/ConfirmDialog";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import ChartsPage from "./features/charts/ChartsPage";
+import LogsPage from "./features/logs/LogsPage";
 import {
   createConfirmationSafetyContext,
   getLatchedDeviceIds,
@@ -49,7 +49,6 @@ import type {
   ControlRuntimeStatus,
   DeviceConnectionRecord,
   DeviceRuntimeStatusView,
-  LogLevel,
   LegacyMigrationPreview,
   LegacyMigrationReport,
   PlaybackStatus,
@@ -63,33 +62,11 @@ import type {
 } from "./softuiTypes";
 import SessionsPage from "./features/sessions/SessionsPage";
 
-function isoShort(ms: number) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(new Date(ms));
-}
-
 function resolveThemeForUser(username: string): ThemeMode {
   return resolveTheme(
     readThemePreference(username),
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
-}
-
-function toneForLevel(level: LogLevel) {
-  switch (level) {
-    case "warn":
-      return "warn";
-    case "error":
-      return "error";
-    case "debug":
-      return "neutral";
-    default:
-      return "info";
-  }
 }
 
 function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "ok" | "warn" | "error" | "info" }) {
@@ -990,7 +967,7 @@ function AppController() {
               onLoadPlayback={loadPlayback}
             />
           }
-          logs={<LogsPageV3 snapshot={snapshot} />}
+          logs={<LogsPage logs={snapshot.logs} onExportDiagnostics={exportDiagnostics} />}
           settings={
             <SettingsPageV2
               snapshot={snapshot}
@@ -1030,135 +1007,6 @@ function AppController() {
           onCancel={safeCommand.cancel}
         />
       </AppShell>
-    </div>
-  );
-}
-
-function LogsPage({ snapshot }: { snapshot: RuntimeSnapshot }) {
-  return (
-    <Panel title="日志" subtitle="诊断" icon={Logs} wide>
-      <div className="log-list">
-        {snapshot.logs.map((entry) => (
-          <div className="log-row" key={entry.id}>
-            <Badge tone={toneForLevel(entry.level)}>{entry.level.toUpperCase()}</Badge>
-            <span className="log-time">{isoShort(entry.timestampMs)}</span>
-            <span className="log-scope">{entry.scope}</span>
-            <span className="log-message">{entry.message}</span>
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
-void LogsPage;
-
-function LogsPageV2({ snapshot }: { snapshot: RuntimeSnapshot }) {
-  const errorCount = snapshot.logs.filter((entry) => entry.level === "error").length;
-  return (
-    <div className="logs-page-layout">
-      <div className="panel-head">
-        <div>
-          <div className="panel-kicker">diagnostics</div>
-          <h2>日志</h2>
-        </div>
-        <div className="kv-grid logs-summary">
-          <div className="kv-item"><span>总数</span><strong>{snapshot.logs.length}</strong></div>
-          <div className="kv-item"><span>错误</span><strong>{errorCount}</strong></div>
-        </div>
-      </div>
-      {snapshot.logs.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-inner">
-            <Logs size={28} />
-            <div className="empty-state-title">暂无日志</div>
-            <p className="empty-state-copy">运行状态、协议错误和审计事件会显示在这里。</p>
-          </div>
-        </div>
-      ) : (
-        <div className="log-list layout-scroll">
-          {snapshot.logs.map((entry) => (
-            <div className="log-row" key={entry.id} title={`${isoShort(entry.timestampMs)} ${entry.scope} ${entry.message}`}>
-              <Badge tone={toneForLevel(entry.level)}>{entry.level.toUpperCase()}</Badge>
-              <span className="log-time">{isoShort(entry.timestampMs)}</span>
-              <span className="log-scope text-truncate">{entry.scope}</span>
-              <span className="log-message text-truncate">{entry.message}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-void LogsPageV2;
-
-function LogsPageV3({ snapshot }: { snapshot: RuntimeSnapshot }) {
-  const logFilters: Array<{ level: LogLevel; label: string }> = [
-    { level: "warn", label: "warning" },
-    { level: "error", label: "error" },
-    { level: "info", label: "info" },
-    { level: "debug", label: "bug" },
-  ];
-  const [activeLogFilter, setActiveLogFilter] = useState<LogLevel | "all">("all");
-  const visibleLogs = activeLogFilter === "all"
-    ? snapshot.logs
-    : snapshot.logs.filter((entry) => entry.level === activeLogFilter);
-  const errorCount = snapshot.logs.filter((entry) => entry.level === "error").length;
-
-  return (
-    <div className="logs-page-layout">
-      <div className="panel-head">
-        <div>
-          <div className="panel-kicker">diagnostics</div>
-          <h2>日志</h2>
-        </div>
-        <div className="kv-grid logs-summary">
-          <div className="kv-item"><span>总数</span><strong>{snapshot.logs.length}</strong></div>
-          <div className="kv-item"><span>错误</span><strong>{errorCount}</strong></div>
-        </div>
-      </div>
-
-      <div className="log-filter-bar" aria-label="日志级别筛选">
-        <button
-          type="button"
-          className={`log-filter-chip ${activeLogFilter === "all" ? "active" : ""}`}
-          onClick={() => setActiveLogFilter("all")}
-        >
-          全部
-        </button>
-        {logFilters.map((filter) => (
-          <button
-            type="button"
-            key={filter.level}
-            className={`log-filter-chip ${activeLogFilter === filter.level ? "active" : ""}`}
-            onClick={() => setActiveLogFilter(filter.level)}
-          >
-            {filter.label}
-          </button>
-        ))}
-      </div>
-
-      {visibleLogs.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-inner">
-            <Logs size={28} />
-            <div className="empty-state-title">暂无匹配日志</div>
-            <p className="empty-state-copy">切换 warning、error、info 或 bug 筛选查看对应级别的运行记录。</p>
-          </div>
-        </div>
-      ) : (
-        <div className="log-list layout-scroll">
-          {visibleLogs.map((entry) => (
-            <div className="log-row" key={entry.id} title={`${isoShort(entry.timestampMs)} ${entry.scope} ${entry.message}`}>
-              <Badge tone={toneForLevel(entry.level)}>{entry.level.toUpperCase()}</Badge>
-              <span className="log-time">{isoShort(entry.timestampMs)}</span>
-              <span className="log-scope text-truncate">{entry.scope}</span>
-              <span className="log-message text-truncate">{entry.message}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
