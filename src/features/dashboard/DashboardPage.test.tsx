@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { fixtureSnapshot } from "../../test/fixtures/fixtureSnapshot";
@@ -79,8 +79,10 @@ describe("DashboardPage", () => {
     render(<DashboardPage {...dashboardProps} />);
 
     await user.click(screen.getByRole("button", { name: "编辑布局" }));
-    await user.click(screen.getByRole("button", { name: "调整连接状态卡片大小" }));
-    await user.click(screen.getByRole("button", { name: "宽 2×1" }));
+    const resizeHandle = screen.getByRole("button", { name: "调整连接状态卡片大小" });
+    fireEvent.pointerDown(resizeHandle, { clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(resizeHandle, { clientX: 40, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(resizeHandle, { pointerId: 1 });
     await user.click(screen.getByRole("button", { name: "保存布局" }));
 
     const saved = JSON.parse(

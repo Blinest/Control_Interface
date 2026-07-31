@@ -40,6 +40,10 @@ assert.match(settingsCss, /\.settings-navigation-tabs/, "settings page needs cat
 assert.match(settings, /SettingsLayout/, "settings page must use categorized layout");
 assert.match(settingsCss, /\.settings-section\s*\{[\s\S]*max-width:\s*none/, "settings content should fill the main area");
 assert.match(dashboardCss, /grid-auto-rows:\s*minmax\(150px,\s*auto\)/, "dashboard cards should adapt to content");
+for (const selector of ["settings-grid", "logs-page-layout", "sessions-page-layout", "charts-page-layout", "log-filter-bar"]) {
+  assert.doesNotMatch(css, new RegExp(`\\.${selector}`), `legacy ${selector} must be removed from App.css`);
+}
+assert.doesNotMatch(css, /border-radius:\s*8px/, "shared radius must use the design token");
 assert.match(sessions, /RecorderWorkbench/, "SessionsPage must merge recorder and stats into one workbench");
 assert.doesNotMatch(
   sessions,
