@@ -1,43 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import {
-  Activity,
-  BarChart3,
-  Crosshair,
-  Database,
-  Download,
-  PauseCircle,
-  Play,
-  RefreshCw,
-  ZoomOut,
-  type LucideIcon,
-} from "lucide-react";
-import type { DeviceSnapshot, RuntimeSnapshot, SessionInfo } from "./softuiTypes";
-
-type ChannelGroup = "motor" | "bend" | "sensor";
-
-interface ChannelMeta {
-  name: string;
-  unit: string;
-  type: ChannelGroup;
-  index: number;
-  visible: boolean;
-  color: string;
-}
-
-const GROUP_LABELS: Record<ChannelGroup, string> = {
-  motor: "电机",
-  bend: "弯曲",
-  sensor: "传感器",
-};
-
-const GROUP_ICONS: Record<ChannelGroup, LucideIcon> = {
-  motor: BarChart3,
-  bend: Activity,
-  sensor: Activity,
-};
+import { Crosshair } from "lucide-react";
+import type { DeviceSnapshot, RuntimeSnapshot, SessionInfo } from "../../softuiTypes";
+import { ChartLayout } from "../../layouts/ChartLayout";
+import { tauriClient } from "../../services/tauriClient";
+import { ChannelSidebar, type ChannelGroup, type ChannelMeta } from "./ChannelSidebar";
+import { ChartToolbar } from "./ChartToolbar";
 
 const SERIES_COLORS = [
   "#4fc3f7", "#81c784", "#ffb74d", "#f06292", "#ba68c8", "#4dd0e1",
@@ -88,7 +57,7 @@ interface ZoomWindow {
 const MAX_RENDER_POINTS = 900;
 
 async function loadLiveWindow(count: number, deviceId?: string): Promise<DeviceSnapshot[]> {
-  const frames = await invoke<DeviceSnapshot[]>("fetch_live_window", { count, deviceId });
+  const frames = await tauriClient.invoke<DeviceSnapshot[]>("fetch_live_window", { count, deviceId });
   // Device windows are chronological; the optional global window is newest-first.
   return deviceId ? frames : [...frames].reverse();
 }
@@ -217,8 +186,8 @@ function chartsFromFrames(frames: DeviceSnapshot[]): RuntimeSnapshot["charts"] |
   return { windowSize: ordered.length, channels };
 }
 
-export default function ChartsPage({ snapshot }: { snapshot: RuntimeSnapshot }) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: RuntimeSnapshot; currentDeviceId?: string }) {
+  const containerRef = useRef<HTMLElement | null>(null);
   const chartRef = useRef<uPlot | null>(null);
   const cursorFrameRef = useRef<number | null>(null);
   const lastRenderedChartKeyRef = useRef("");
@@ -230,7 +199,7 @@ export default function ChartsPage({ snapshot }: { snapshot: RuntimeSnapshot }) 
   const [chartError, setChartError] = useState("");
   const [cursorReadout] = useState<CursorReadout | null>(null);
   const [zoomWindow, setZoomWindow] = useState<ZoomWindow | null>(null);
-  const liveDeviceId = snapshot.live.selectedDeviceId;
+  const liveDeviceId = currentDeviceId ?? snapshot.live.selectedDeviceId;
   const historyCharts = useMemo(() => chartsFromFrames(historyFrames), [historyFrames]);
   const activeSnapshot = useMemo<RuntimeSnapshot>(() => {
     const charts = historyCharts ?? snapshot.charts;
@@ -443,7 +412,7 @@ export default function ChartsPage({ snapshot }: { snapshot: RuntimeSnapshot }) 
   }, [activeSnapshot.charts]);
 
   useEffect(() => {
-    void invoke<SessionInfo[]>("list_sessions")
+    void tauriClient.invoke<SessionInfo[]>("list_sessions")
       .then(setSessions)
       .catch(() => setSessions([]));
   }, []);
@@ -453,7 +422,7 @@ export default function ChartsPage({ snapshot }: { snapshot: RuntimeSnapshot }) 
       setHistoryFrames([]);
       return;
     }
-    void invoke<DeviceSnapshot[]>("read_session_frames", {
+    void tauriClient.invoke<DeviceSnapshot[]>("read_session_frames", {
       id: selectedSessionId,
       maxCount: 5000,
     })
@@ -491,7 +460,7 @@ export default function ChartsPage({ snapshot }: { snapshot: RuntimeSnapshot }) 
 
   const exportVisibleChannels = async () => {
     try {
-      const path = await invoke<string>("export_chart_csv", {
+      const path = await tauriClient.invoke<string>("export_chart_csv", {
         sessionId: selectedSessionId === "live" ? null : selectedSessionId,
         channelNames: visibleSeries.map((channel) => channel.name),
         maxCount: 5000,
@@ -650,92 +619,32 @@ export default function ChartsPage({ snapshot }: { snapshot: RuntimeSnapshot }) 
   };
 
   return (
-    <div className="charts-page-layout">
-      <aside className="charts-sidebar">
-        <div className="charts-sidebar-header">
-          <strong>通道列表</strong>
-        </div>
-        {(["motor", "bend", "sensor"] as ChannelGroup[]).map((group) => {
-          const groupCh = channels.filter((c) => c.type === group);
-          if (groupCh.length === 0) return null;
-          const Icon = GROUP_ICONS[group];
-          const allVis = groupCh.every((c) => c.visible);
-          return (
-            <div className="channel-group" key={group}>
-              <button
-                type="button"
-                className={`channel-group-header ${allVis ? "active" : ""}`}
-                onClick={() => toggleGroup(group)}
-              >
-                <Icon size={14} />
-                <span>{GROUP_LABELS[group]}</span>
-                <span className="channel-count">{groupCh.length}</span>
-              </button>
-              <div className="channel-items">
-                {groupCh.map((ch) => (
-                  <label className={`channel-item ${ch.visible ? "active" : ""}`} key={ch.name}>
-                    <input
-                      type="checkbox"
-                      checked={ch.visible}
-                      onChange={() => toggleChannel(ch.name)}
-                    />
-                    <span className="channel-dot" style={{ background: ch.color }} />
-                    <span className="channel-name">{ch.name}</span>
-                    <span className="channel-unit">{ch.unit}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </aside>
-
+    <ChartLayout
+      channelsLabel="曲线通道"
+      toolbarLabel="曲线工具栏"
+      channels={
+        <ChannelSidebar
+          channels={channels}
+          onToggleChannel={toggleChannel}
+          onToggleGroup={toggleGroup}
+        />
+      }
+      toolbar={
+        <ChartToolbar
+          sessions={sessions}
+          selectedSessionId={selectedSessionId}
+          paused={paused}
+          playbackMode={activeSnapshot.playbackMode}
+          status={chartError || exportPath || (zoomWindow ? `时间轴 ${zoomWindow.min.toFixed(2)}s ~ ${zoomWindow.max.toFixed(2)}s` : "滚轮缩放时间轴")}
+          onSessionChange={setSelectedSessionId}
+          onPauseChange={setPaused}
+          onRefresh={() => setPaused(false)}
+          onResetZoom={resetZoom}
+          onExportCsv={() => void exportVisibleChannels()}
+        />
+      }
+    >
       <div className="charts-main">
-        <div className="charts-toolbar">
-          <div className="charts-toolbar-left">
-            <select
-              className="charts-session-select"
-              value={selectedSessionId}
-              onChange={(event) => setSelectedSessionId(event.target.value)}
-            >
-              <option value="live">实时数据</option>
-              {sessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {session.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className={`ghost-btn-sm ${paused ? "active" : ""}`}
-              onClick={() => setPaused(!paused)}
-            >
-              {paused ? <Play size={14} /> : <PauseCircle size={14} />}
-              <span>{paused ? "继续" : "暂停"}</span>
-            </button>
-            <button type="button" className="ghost-btn-sm" onClick={() => setPaused(false)}>
-              <RefreshCw size={14} />
-              <span>刷新</span>
-            </button>
-            <button type="button" className="ghost-btn-sm" onClick={resetZoom}>
-              <ZoomOut size={14} />
-              <span>重置缩放</span>
-            </button>
-            <button type="button" className="ghost-btn-sm" onClick={() => void exportVisibleChannels()}>
-              <Download size={14} />
-              <span>导出 CSV</span>
-            </button>
-            {activeSnapshot.playbackMode ? (
-              <span className="playback-mode-badge">
-                <Database size={14} />
-                <span>回放模式</span>
-              </span>
-            ) : null}
-          </div>
-          <div className="charts-toolbar-status">
-            {chartError || exportPath || (zoomWindow ? `时间轴 ${zoomWindow.min.toFixed(2)}s ~ ${zoomWindow.max.toFixed(2)}s` : "滚轮缩放时间轴")}
-          </div>
-        </div>
         <div className="charts-readout" aria-live="polite">
           <div className="charts-readout-head">
             <Crosshair size={14} />
@@ -747,10 +656,10 @@ export default function ChartsPage({ snapshot }: { snapshot: RuntimeSnapshot }) 
           </div>
           <div className="charts-readout-values" />
         </div>
-        <div className="charts-container" ref={containerRef} />
+        <section className="chart-canvas-region" aria-label="曲线绘图区" ref={containerRef} />
         {paused ? <div className="charts-paused-overlay">已暂停 — 数据不再更新</div> : null}
         {activeSnapshot.playbackMode ? <div className="charts-playback-overlay">历史会话 — 已加载 {historyFrames.length} 帧</div> : null}
       </div>
-    </div>
+    </ChartLayout>
   );
 }

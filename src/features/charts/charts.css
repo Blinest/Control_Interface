@@ -1,0 +1,22 @@
+.chart-canvas-region {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  position: relative;
+}
+
+.charts-main {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.chart-layout .charts-sidebar,
+.chart-layout .charts-toolbar {
+  height: 100%;
+}
+
+.chart-layout .charts-toolbar {
+  width: 100%;
+}

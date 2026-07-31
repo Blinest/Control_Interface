@@ -17,11 +17,11 @@ import { HashRouter } from "react-router-dom";
 
 import { AppRouter } from "./app/AppRouter";
 import { AppShell } from "./app/AppShell";
-import ChartsPage from "./charts";
 import ConnectDialog from "./components/ConnectDialog";
 import PlaybackBar from "./components/PlaybackBar";
 import { ConfirmDialog } from "./components/feedback/ConfirmDialog";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
+import ChartsPage from "./features/charts/ChartsPage";
 import {
   createConfirmationSafetyContext,
   getLatchedDeviceIds,
@@ -975,7 +975,7 @@ function AppController() {
               onWorkspaceCommand={submitWorkspaceCommand}
             />
           }
-          charts={<ChartsPage snapshot={snapshot} />}
+          charts={<ChartsPage snapshot={snapshot} currentDeviceId={currentDeviceId} />}
           sessions={
             <SessionsPage
               sessions={sessions}
