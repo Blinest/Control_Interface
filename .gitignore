@@ -28,6 +28,7 @@ data/
 !src/components/data/
 sessions
 sessions/
+!src/features/sessions/
 recordings
 recordings/
 captures

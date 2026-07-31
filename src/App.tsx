@@ -42,7 +42,6 @@ import { tauriClient } from "./services/tauriClient";
 import { reconcileDeviceRefresh, selectCurrentDevice } from "./state/deviceSelectionStore";
 import { makeFallbackSnapshot } from "./state/fallbackSnapshot";
 import { applyTheme, readThemePreference, resolveTheme, writeThemePreference } from "./state/themeStore";
-import SessionsPage from "./pages/SessionsPage";
 import type {
   AuthSession,
   ConnectDeviceRequest,
@@ -62,6 +61,7 @@ import type {
   ThemeMode,
   UserAccount,
 } from "./softuiTypes";
+import SessionsPage from "./features/sessions/SessionsPage";
 
 function isoShort(ms: number) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -978,6 +978,7 @@ function AppController() {
           charts={<ChartsPage snapshot={snapshot} currentDeviceId={currentDeviceId} />}
           sessions={
             <SessionsPage
+              snapshot={snapshot}
               sessions={sessions}
               recorderStatus={recorderStatus}
               onToggleRecording={toggleRecording}
