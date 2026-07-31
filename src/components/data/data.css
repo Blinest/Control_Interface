@@ -1,0 +1,99 @@
+.data-empty-state {
+  height: 100%;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.data-empty-state-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 440px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.data-empty-state-title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.data-empty-state-reason,
+.data-empty-state-context {
+  margin: 0;
+}
+
+.data-empty-state-context {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-family: "Cascadia Code", Consolas, "Segoe UI", monospace;
+}
+
+.data-empty-state-action {
+  margin-top: 6px;
+}
+
+.path-value {
+  display: inline-block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: "Cascadia Code", Consolas, "Segoe UI", monospace;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.path-value-compact {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.status-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-badge-ok {
+  color: var(--status-ok);
+}
+
+.status-badge-warning {
+  color: var(--status-warning);
+}
+
+.status-badge-error {
+  color: var(--status-error);
+}
+
+.status-badge-info {
+  color: var(--status-info);
+}
+
+.status-badge-bug {
+  color: var(--status-debug);
+}
+
+.status-badge-neutral {
+  color: var(--text-muted);
+}

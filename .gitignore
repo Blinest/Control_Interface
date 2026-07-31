@@ -25,6 +25,7 @@ src-tauri/target/
 # Local runtime data
 data
 data/
+!src/components/data/
 sessions
 sessions/
 recordings
