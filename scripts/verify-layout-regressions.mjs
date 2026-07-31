@@ -11,6 +11,7 @@ const logsCss = readFileSync(new URL("../src/features/logs/logs.css", import.met
 const logFilters = readFileSync(new URL("../src/features/logs/logFilters.ts", import.meta.url), "utf8");
 const settings = readFileSync(new URL("../src/features/settings/SettingsPage.tsx", import.meta.url), "utf8");
 const settingsCss = readFileSync(new URL("../src/features/settings/settings.css", import.meta.url), "utf8");
+const dashboardCss = readFileSync(new URL("../src/features/dashboard/dashboard.css", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../src/styles/shell.css", import.meta.url), "utf8");
 const base = readFileSync(new URL("../src/styles/base.css", import.meta.url), "utf8");
 
@@ -37,6 +38,8 @@ for (const label of ["warning", "error", "info", "bug"]) {
 assert.match(logFilters, /level === "debug"[\s\S]*\? "bug"/, "bug filter should map to debug log level");
 assert.match(settingsCss, /\.settings-navigation-tabs/, "settings page needs categorized navigation");
 assert.match(settings, /SettingsLayout/, "settings page must use categorized layout");
+assert.match(settingsCss, /\.settings-section\s*\{[\s\S]*max-width:\s*none/, "settings content should fill the main area");
+assert.match(dashboardCss, /grid-auto-rows:\s*minmax\(150px,\s*auto\)/, "dashboard cards should adapt to content");
 assert.match(sessions, /RecorderWorkbench/, "SessionsPage must merge recorder and stats into one workbench");
 assert.doesNotMatch(
   sessions,

@@ -66,7 +66,7 @@
 .feature-card-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: 156px;
+  grid-auto-rows: minmax(150px, auto);
   gap: 12px;
   min-width: 0;
 }

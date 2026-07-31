@@ -39,7 +39,7 @@
   display: grid;
   align-content: start;
   gap: 16px;
-  max-width: 920px;
+  max-width: none;
   padding: 16px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
