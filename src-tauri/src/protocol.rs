@@ -600,4 +600,40 @@ mod tests {
         assert_eq!(stats.last_frame_ms, 0);
         assert_eq!(stats.last_error, None);
     }
+
+    #[test]
+    fn rejects_invalid_status_header() {
+        assert_eq!(
+            parse_status_frame(&[0xAA, 0x02, 0x00, 0x00]),
+            Err(ProtocolError::InvalidHeader)
+        );
+    }
+
+    #[test]
+    fn rejects_truncated_status_frame() {
+        assert_eq!(
+            parse_status_frame(&[0xBB, 0x02, 0x14, 0x01]),
+            Err(ProtocolError::InvalidLength)
+        );
+    }
+
+    #[test]
+    fn rejects_out_of_range_command_values() {
+        assert_eq!(
+            encode_motor_command(1, f64::NAN, 10.0, 10.0),
+            Err(ProtocolError::ValueOutOfRange("position"))
+        );
+        assert_eq!(
+            encode_bend_command(4, 1.0, 0, 1.0),
+            Err(ProtocolError::ValueOutOfRange("direction"))
+        );
+    }
+
+    #[test]
+    fn rejects_oversized_payload() {
+        assert_eq!(
+            encode_frame(FrameHead::Motor, 0x03, &vec![0u8; 256]),
+            Err(ProtocolError::InvalidLength)
+        );
+    }
 }
