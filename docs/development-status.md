@@ -6,7 +6,7 @@
 
 当前工作区：`D:\APP\ControlUI\softui-desktop\.worktrees\ui-foundation-shell`
 
-当前 HEAD：`b21bc40 fix: keep ui regression aligned with theme preference flow`
+当前 HEAD：`ed203b4 fix: bound pending command queue`
 
 ## 一、当前开发状态
 
@@ -82,11 +82,31 @@
 - `npm.cmd run test:layout-regressions`：通过。
 - `npm.cmd run build`：通过，仅有 Vite chunk 体积警告。
 
-### 5. 已知未收口事项
+### 5. Phase 4 与 Phase 5：稳定性、协议、串口与运行时补强（已完成）
+
+已完成：
+
+- 前端新增 ErrorBoundary，渲染异常时可恢复，不再整窗无响应。
+- Vite 增加 vendor/three/uplot 分包，主包降至约 117 kB，消除 chunk 体积警告。
+- 后台 snapshot 与曲线实时窗口刷新串行化，避免请求堆积。
+- 协议补充非法头、截断帧、越界值、超长载荷边界测试。
+- 串口配置补充 data bits、parity、stop bits、flow control 校验测试。
+- 设备命令队列增加 64 条上限与丢弃计数，防止内存无限增长。
+- release exe 与安装包重新构建成功。
+
+验证结果：
+
+- 前端单元测试：27 个文件、107 个测试通过。
+- UI 回归、布局回归：通过。
+- Rust 测试：97 个通过。
+- release 构建：`softui-desktop.exe`、MSI、NSIS 安装包生成成功。
+
+### 6. 已知未收口事项
 
 - Phase 2 的最终整体验收评审子任务曾启动，但在用户中断前尚未返回最终文本。当前本地验证已经通过，但还没有拿到该子评审的最终报告。
 - `npm.cmd run build` 存在 Vite chunk 体积警告，当前不影响构建，但后续可以通过动态导入或 manualChunks 优化。
 - Phase 3 五个任务已全部完成并提交，对应计划文件仍保留在 `docs\superpowers\plans` 下。
+- Phase 4/5 完成，对应计划文件为 `docs\superpowers\plans\2026-07-31-stability-runtime-completion.md`。
 
 ## 二、当前外观与布局改造方向
 
@@ -145,6 +165,8 @@
 
 ### Phase 4：性能与稳定性专项
 
+状态：已完成，执行结果见上文 Phase 4/5 完成记录。
+
 目标：解决用户反馈的卡顿、无响应、黑窗口重启闪烁等问题。
 
 建议任务：
@@ -168,6 +190,8 @@
    - 增加启动失败时的诊断导出入口。
 
 ### Phase 5：协议、串口与运行时补全
+
+状态：已完成边界测试与命令队列收紧，执行结果见上文 Phase 4/5 完成记录。
 
 目标：继续推进之前评估中尚未满完成度的核心功能。
 
