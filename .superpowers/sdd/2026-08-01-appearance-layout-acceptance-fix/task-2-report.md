@@ -28,3 +28,30 @@
 ## Concerns
 
 - No open concerns. `src/styles/shell.css` was included because the task explicitly requires the global account and emergency-stop controls to consume the new semantic button tokens.
+
+## Review Fix: Button Contrast
+
+### Files Changed
+
+- `src/styles/tokens.css`
+- `src/styles/tokens.test.ts`
+
+### TDD Evidence
+
+- Red: `npm.cmd run test:unit -- src/styles/tokens.test.ts` failed with the dark button contrast assertion at `3.988952938304131:1`, below the required `4.5:1`.
+- Green: the same command passed after changing dark `--button-danger-text` to `#08141d`: 1 test file and 10 tests passed.
+
+### Verification
+
+- `npm.cmd run test:unit -- src/styles/tokens.test.ts`: PASS, 1 file and 10 tests passed.
+- `npm.cmd run test:ui-regressions`: PASS; Task 1 mojibake guard remains active.
+- `npm.cmd run build`: PASS (`tsc && vite build`).
+- `git diff --check`: PASS before commit.
+
+### Commit
+
+- Review fix: `559ce48e6fd717c4eee18b4e769875ef25f49cc2` (`fix: enforce button token contrast`)
+
+### Concerns
+
+- No open concerns.
