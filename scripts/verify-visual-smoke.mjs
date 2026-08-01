@@ -14,8 +14,16 @@ const viewports = [
 ];
 const themes = ["light", "dark"];
 const baseUrl = "http://127.0.0.1:1421";
+const visualSmokeMarkerPath = "/__softui_visual_smoke_marker__";
 const rootDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const artifactDirectory = resolve(rootDirectory, "artifacts", "visual-smoke");
+const layoutEditTextPattern = /(?:\u8c03\u6574\u5e03\u5c40|\u7f16\u8f91\u5e03\u5c40|\u4fdd\u5b58\u5e03\u5c40)/u;
+const layoutEditCancelLabel = "\u53d6\u6d88";
+
+function normalizeWorktreePath(directory) {
+  const normalized = resolve(directory).replaceAll("\\", "/").replace(/\/+$/, "");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
 
 function portIsOpen(port) {
   return new Promise((resolvePort) => {
@@ -45,8 +53,33 @@ async function waitForServer(server, output) {
   throw new Error(`Timed out waiting for Vite on port 1421:\n${output()}`);
 }
 
+async function assertSoftuiDevServer() {
+  let response;
+  try {
+    response = await fetch(`${baseUrl}${visualSmokeMarkerPath}`);
+  } catch (error) {
+    throw new Error(`Port 1421 is occupied by a service that is not this SoftUI worktree (${rootDirectory}): marker request failed (${error.message})`);
+  }
+  if (!response.ok) {
+    throw new Error(`Port 1421 is occupied by a service that is not this SoftUI worktree (${rootDirectory}): marker endpoint returned HTTP ${response.status}`);
+  }
+
+  let marker;
+  try {
+    marker = await response.json();
+  } catch {
+    throw new Error(`Port 1421 is occupied by a service that is not this SoftUI worktree (${rootDirectory}): marker response is not JSON`);
+  }
+  if (marker.app !== "softui-desktop" || marker.root !== normalizeWorktreePath(rootDirectory)) {
+    throw new Error(`Port 1421 is occupied by a different app or worktree; expected SoftUI at ${rootDirectory}`);
+  }
+}
+
 async function startViteIfNeeded() {
-  if (await portIsOpen(1421)) return null;
+  if (await portIsOpen(1421)) {
+    await assertSoftuiDevServer();
+    return null;
+  }
 
   let output = "";
   const npmCommand = process.platform === "win32" ? "cmd.exe" : "npm";
@@ -66,6 +99,7 @@ async function startViteIfNeeded() {
 
   try {
     await waitForServer(server, () => output);
+    await assertSoftuiDevServer();
     return server;
   } catch (error) {
     await stopVite(server);
@@ -94,6 +128,36 @@ async function expectVisible(page, selector) {
 async function expectNoText(page, pattern) {
   const visibleText = await page.locator("body").innerText();
   if (pattern.test(visibleText)) throw new Error(`Unexpected visible text matched ${pattern}`);
+}
+
+async function expectNoLayoutEditCancelButton(page) {
+  const violations = await page.locator('button, [role="button"], input[type="button"], input[type="submit"]').evaluateAll(
+    (elements, cancelLabel) => elements
+      .filter((element) => {
+        const style = getComputedStyle(element);
+        if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return false;
+        const label = (element.textContent?.trim() || element.getAttribute("aria-label") || element.getAttribute("value") || "").trim();
+        if (label !== cancelLabel) return false;
+
+        for (let current = element; current && current !== document.body; current = current.parentElement) {
+          const metadata = [
+            current.className,
+            current.id,
+            current.getAttribute("aria-label"),
+            current.getAttribute("data-testid"),
+            current.getAttribute("data-layout"),
+          ].filter((value) => typeof value === "string").join(" ");
+          if (/(?:layout|edit|\u5e03\u5c40)/iu.test(metadata)) return true;
+        }
+        return false;
+      })
+      .map((element) => ({
+        className: element.className,
+        text: element.textContent?.trim(),
+      })),
+    layoutEditCancelLabel,
+  );
+  if (violations.length > 0) throw new Error(`Unexpected layout-edit cancel button: ${JSON.stringify(violations)}`);
 }
 
 async function assertNoZeroSizedText(page) {
@@ -169,6 +233,8 @@ async function verifyRoute(browser, route, theme, viewport) {
     await expectNoText(page, /璋冩暣甯冨眬|缂栬緫甯冨眬/);
     await expectNoText(page, /娑搢閺億閻鐠亅閹瑋娴紎缁緗閸榺瑜皘姒?/);
     await expectNoText(page, mojibakePattern);
+    await expectNoText(page, layoutEditTextPattern);
+    await expectNoLayoutEditCancelButton(page);
 
     if (route === "/#/charts") {
       await expectVisible(page, ".charts-sidebar");
