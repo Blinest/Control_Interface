@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import shell from "./shell.css?raw";
 import tokens from "./tokens.css?raw";
+
+const appCss = readFileSync("src/App.css", "utf8");
 
 const themeTokens = {
   light: tokens.match(/:root,\s*:root\[data-theme="light"\]\s*\{([\s\S]*?)\}/)?.[1] ?? "",
@@ -47,5 +50,28 @@ describe("semantic token contrast", () => {
     expect(shell).toMatch(/\.app-sidebar\s*\{[^}]*color:\s*var\(--text-sidebar\)/);
     expect(shell).toMatch(/\.sidebar-nav-link\s*\{[^}]*color:\s*var\(--text-sidebar\)/);
     expect(shell).toMatch(/\.sidebar-nav-group h2\s*\{[^}]*color:\s*var\(--text-sidebar-muted\)/);
+  });
+});
+
+describe("button contrast tokens", () => {
+  it("defines explicit button and disabled colors for both themes", () => {
+    for (const name of [
+      "--button-default-bg",
+      "--button-default-text",
+      "--button-default-border",
+      "--button-primary-bg",
+      "--button-primary-text",
+      "--button-danger-bg",
+      "--button-danger-text",
+      "--button-disabled-bg",
+      "--button-disabled-text",
+      "--button-disabled-border",
+    ]) {
+      expect(tokens).toContain(name);
+    }
+  });
+
+  it("does not rely on opacity for disabled button readability", () => {
+    expect(appCss).not.toMatch(/button:disabled\s*\{[^}]*opacity:\s*0\.[0-9]/);
   });
 });

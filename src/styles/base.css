@@ -30,10 +30,10 @@ input {
 
 button {
   min-height: var(--control-height);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--button-primary-bg);
   border-radius: var(--radius-card);
-  background: var(--action-primary);
-  color: var(--action-primary-text);
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
 }
 
 input {
@@ -51,7 +51,13 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
-button:disabled,
+button:disabled {
+  border-color: var(--button-disabled-border);
+  background: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
+  opacity: 1;
+}
+
 input:disabled {
   border-color: var(--border-subtle);
   background: var(--action-disabled);

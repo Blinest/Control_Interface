@@ -21,14 +21,14 @@ const visibleSources = [
 
 assert.match(
   css,
-  /\.login-shell\s+\.primary-btn:disabled[\s\S]*background:\s*#[0-9a-fA-F]{6}[\s\S]*color:\s*#[0-9a-fA-F]{6}/,
-  "login disabled primary button needs explicit high-contrast background and text colors",
+  /\.login-shell\s+\.primary-btn:disabled[\s\S]*background:\s*var\(--button-disabled-bg\)[\s\S]*color:\s*var\(--button-disabled-text\)/,
+  "login disabled primary button needs semantic high-contrast background and text colors",
 );
 
 assert.match(
   css,
-  /\.login-shell\.theme-light\s+\.primary-btn:disabled[\s\S]*background:\s*#[0-9a-fA-F]{6}[\s\S]*color:\s*#[0-9a-fA-F]{6}/,
-  "light login disabled primary button needs explicit high-contrast colors",
+  /\.primary-btn:disabled[\s\S]*border-color:\s*var\(--button-disabled-border\)[\s\S]*color:\s*var\(--button-disabled-text\)/,
+  "disabled primary buttons need semantic border and text colors",
 );
 
 assert.match(
@@ -66,3 +66,7 @@ assert.match(
   /\.login-shell\s+\.login-mark\s*\{[\s\S]*display:\s*grid[\s\S]*place-items:\s*center[\s\S]*background:[\s\S]*border:[\s\S]*border-radius:[\s\S]*width:[\s\S]*height:/,
   "login mark styling must remain owned by the login shell",
 );
+
+assert.match(css, /--button-disabled-bg/);
+assert.match(css, /--button-disabled-text/);
+assert.doesNotMatch(css, /button:disabled\s*\{[^}]*opacity:\s*0\.[0-9]/);

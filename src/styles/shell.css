@@ -134,9 +134,9 @@
   gap: 6px;
   flex: 0 0 auto;
   min-height: 36px;
-  border-color: var(--action-danger);
-  background: var(--action-danger);
-  color: var(--action-danger-text);
+  border-color: var(--button-danger-bg);
+  background: var(--button-danger-bg);
+  color: var(--button-danger-text);
   font-weight: 700;
 }
 
@@ -147,9 +147,9 @@
   min-width: 0;
   max-width: min(220px, 28vw);
   padding: 0 8px;
-  border-color: var(--border-default);
-  background: var(--surface-overlay);
-  color: var(--text-primary);
+  border-color: var(--button-default-border);
+  background: var(--button-default-bg);
+  color: var(--button-default-text);
 }
 
 .global-account-control span {

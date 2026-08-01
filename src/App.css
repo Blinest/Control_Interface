@@ -103,21 +103,15 @@ button {
   gap: 8px;
   padding: 8px 12px;
   border-radius: var(--radius-card);
-  background: #1d2530;
-  color: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.theme-light .ghost-btn,
-.theme-light .primary-btn {
-  background: #f1f5f9;
-  border-color: rgba(17, 28, 40, 0.1);
+  background: var(--button-default-bg);
+  color: var(--button-default-text);
+  border: 1px solid var(--button-default-border);
 }
 
 .primary-btn {
-  background: #2f79c7;
-  border-color: #2f79c7;
-  color: #ffffff;
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
 }
 
 .primary-btn.is-idle {
@@ -717,9 +711,9 @@ button {
   gap: 6px;
   padding: 5px 10px;
   border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--button-default-bg);
+  color: var(--button-default-text);
+  border: 1px solid var(--button-default-border);
   font-size: 0.82rem;
   cursor: pointer;
   white-space: nowrap;
@@ -733,10 +727,6 @@ button {
   background: rgba(59, 164, 255, 0.12);
   border-color: rgba(59, 164, 255, 0.24);
   color: #7cc0ff;
-}
-
-.theme-light .ghost-btn-sm {
-  border-color: rgba(17, 28, 40, 0.1);
 }
 
 .theme-light .ghost-btn-sm:hover {
@@ -2547,9 +2537,12 @@ button {
 /* ---- primary-btn disabled state ---- */
 
 .primary-btn.disabled {
-  opacity: 0.45;
+  opacity: 1;
   cursor: not-allowed;
   pointer-events: none;
+  background: var(--button-disabled-bg);
+  border-color: var(--button-disabled-border);
+  color: var(--button-disabled-text);
 }
 
 /* ---- playback bar ---- */
@@ -3631,7 +3624,7 @@ button {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 1;
 }
 
 .emergency-fault-banner {
@@ -3696,25 +3689,14 @@ button:disabled {
 }
 
 .login-shell .primary-btn:disabled {
-  background: #263545;
-  border-color: #34465a;
-  color: #b7c6d8;
+  background: var(--button-disabled-bg);
+  border-color: var(--button-disabled-border);
+  color: var(--button-disabled-text);
   opacity: 1;
 }
 
 .login-shell .primary-btn:disabled svg {
   color: #8fa3b8;
-}
-
-.login-shell.theme-light .primary-btn:disabled {
-  background: #d7e1ec;
-  border-color: #b8c7d8;
-  color: #334155;
-  opacity: 1;
-}
-
-.login-shell.theme-light .primary-btn:disabled svg {
-  color: #64748b;
 }
 
 @media (max-width: 980px) {
@@ -4427,27 +4409,14 @@ select option,
 }
 
 .primary-btn:disabled {
-  background: #263545;
-  border-color: #34465a;
-  color: #b7c6d8;
+  background: var(--button-disabled-bg);
+  border-color: var(--button-disabled-border);
+  color: var(--button-disabled-text);
 }
 
 .ghost-btn:disabled,
 .ghost-btn-sm:disabled {
-  background: rgba(38, 53, 69, 0.72);
-  border-color: rgba(143, 163, 184, 0.22);
-  color: #9fb0c4;
-}
-
-.theme-light .primary-btn:disabled {
-  background: #d7e1ec;
-  border-color: #b8c7d8;
-  color: #334155;
-}
-
-.theme-light .ghost-btn:disabled,
-.theme-light .ghost-btn-sm:disabled {
-  background: #e8eef5;
-  border-color: #cbd5e1;
-  color: #64748b;
+  background: var(--button-disabled-bg);
+  border-color: var(--button-disabled-border);
+  color: var(--button-disabled-text);
 }
