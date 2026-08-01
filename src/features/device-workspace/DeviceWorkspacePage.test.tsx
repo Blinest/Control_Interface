@@ -104,17 +104,16 @@ describe("DeviceWorkspacePage", () => {
     );
   });
 
-  it("keeps the model scene mounted when a monitor card size is saved", async () => {
-    const user = userEvent.setup();
+  it("keeps the model scene mounted when a monitor card size is resized directly", () => {
     render(<DeviceWorkspacePage {...workspaceProps} />);
 
     expect(screen.getByLabelText("三维模型视图")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "编辑布局" }));
-    const resizeHandle = screen.getByRole("button", { name: "调整三维模型卡片大小" });
+    expect(screen.queryByRole("button", { name: /\u8c03\u6574\u5e03\u5c40|\u7f16\u8f91\u5e03\u5c40|\u4fdd\u5b58\u5e03\u5c40|\u53d6\u6d88/ })).not.toBeInTheDocument();
+
+    const resizeHandle = screen.getByRole("button", { name: "\u62c9\u4f38\u4e09\u7ef4\u6a21\u578b\u5361\u7247" });
     fireEvent.pointerDown(resizeHandle, { clientX: 0, clientY: 0, pointerId: 1 });
     fireEvent.pointerMove(resizeHandle, { clientX: 40, clientY: 10, pointerId: 1 });
     fireEvent.pointerUp(resizeHandle, { pointerId: 1 });
-    await user.click(screen.getByRole("button", { name: "保存布局" }));
 
     const saved = JSON.parse(
       localStorage.getItem(`softui:layout:${fixtureSnapshot.authSession.username}:workspace-monitor`) ?? "null",

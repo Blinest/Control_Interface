@@ -2,16 +2,18 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
-import type { CardPlacement } from "../../softuiTypes";
+import type { CardPlacement, CardSize } from "../../softuiTypes";
+import { CardResizeHandle } from "./CardResizeHandle";
 
 export interface SortableCardProps {
   card: CardPlacement;
+  cardLabel: string;
   className: string;
   children: ReactNode;
-  editing?: boolean;
+  onResize: (size: CardSize) => void;
 }
 
-export function SortableCard({ card, className, children, editing = false }: SortableCardProps) {
+export function SortableCard({ card, cardLabel, className, children, onResize }: SortableCardProps) {
   const {
     attributes,
     isDragging,
@@ -20,7 +22,7 @@ export function SortableCard({ card, className, children, editing = false }: Sor
     setNodeRef,
     transform,
     transition,
-  } = useSortable({ id: card.id, disabled: !editing });
+  } = useSortable({ id: card.id });
 
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -33,20 +35,23 @@ export function SortableCard({ card, className, children, editing = false }: Sor
       ref={setNodeRef}
       style={style}
     >
-      <div className="card-layout-item-header">
-        {children}
-        {editing ? (
-          <button
-            aria-label="移动卡片"
-            className="card-icon-button card-drag-handle"
-            ref={setActivatorNodeRef}
-            type="button"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical aria-hidden="true" size={16} />
-          </button>
-        ) : null}
+      {children}
+      <div className="card-layout-item-controls">
+        <button
+          aria-label={`\u79fb\u52a8${cardLabel}\u5361\u7247`}
+          className="card-icon-button card-drag-handle"
+          ref={setActivatorNodeRef}
+          type="button"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical aria-hidden="true" size={16} />
+        </button>
+        <CardResizeHandle
+          label={`\u62c9\u4f38${cardLabel}\u5361\u7247`}
+          onResize={onResize}
+          size={card.size}
+        />
       </div>
     </article>
   );

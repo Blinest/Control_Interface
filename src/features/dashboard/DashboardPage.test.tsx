@@ -1,5 +1,4 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { fixtureSnapshot } from "../../test/fixtures/fixtureSnapshot";
 import type { PageLayout } from "../../softuiTypes";
@@ -74,21 +73,19 @@ describe("DashboardPage", () => {
     expect(within(healthCard as HTMLElement).getAllByText("无数据").length).toBeGreaterThan(0);
   });
 
-  it("edits and persists the current user's dashboard layout", async () => {
-    const user = userEvent.setup();
+  it("persists dashboard card resizing immediately without layout edit text buttons", () => {
     render(<DashboardPage {...dashboardProps} />);
 
-    await user.click(screen.getByRole("button", { name: "编辑布局" }));
-    const resizeHandle = screen.getByRole("button", { name: "调整连接状态卡片大小" });
+    expect(screen.queryByRole("button", { name: /\u8c03\u6574\u5e03\u5c40|\u7f16\u8f91\u5e03\u5c40|\u4fdd\u5b58\u5e03\u5c40|\u53d6\u6d88/ })).not.toBeInTheDocument();
+
+    const resizeHandle = screen.getByRole("button", { name: "\u62c9\u4f38\u8fde\u63a5\u72b6\u6001\u5361\u7247" });
     fireEvent.pointerDown(resizeHandle, { clientX: 0, clientY: 0, pointerId: 1 });
     fireEvent.pointerMove(resizeHandle, { clientX: 40, clientY: 10, pointerId: 1 });
     fireEvent.pointerUp(resizeHandle, { pointerId: 1 });
-    await user.click(screen.getByRole("button", { name: "保存布局" }));
 
     const saved = JSON.parse(
       localStorage.getItem(`softui:layout:${fixtureSnapshot.authSession.username}:dashboard`) ?? "null",
     ) as PageLayout;
     expect(saved.cards.find((card) => card.id === "connection")?.size).toBe("2x1");
-    expect(screen.queryByLabelText("编辑卡片布局")).not.toBeInTheDocument();
   });
 });

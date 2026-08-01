@@ -1,16 +1,3 @@
-.card-layout-editor {
-  display: grid;
-  gap: 16px;
-  color: var(--text-primary);
-}
-
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: 132px;
-  gap: 12px;
-}
-
 .card-size-wide {
   grid-column: span 2;
 }
@@ -24,12 +11,8 @@
   grid-row: span 2;
 }
 
-.card-layout-card {
-  min-width: 0;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-  background: var(--surface-panel);
-  box-shadow: 0 1px 2px rgb(8 20 29 / 8%);
+.card-layout-item {
+  position: relative;
 }
 
 .card-layout-item.is-dragging {
@@ -37,52 +20,43 @@
   opacity: 0.7;
 }
 
-.card-layout-item-header,
-.card-layout-card-title,
-.card-layout-editor-actions,
-.card-layout-editor-primary-actions {
+.card-layout-item .feature-card-header {
+  padding-right: 72px;
+}
+
+.card-layout-item-controls {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  right: 6px;
   display: flex;
-  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 120ms ease;
 }
 
-.card-layout-item-header {
-  height: 100%;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px;
+.card-layout-item:hover .card-layout-item-controls,
+.card-layout-item:focus-within .card-layout-item-controls,
+.card-layout-item.is-dragging .card-layout-item-controls {
+  opacity: 1;
 }
 
-.card-layout-card-title {
-  min-width: 0;
-  gap: 8px;
-}
-
-.card-layout-card-title h3 {
-  margin: 0;
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size: 15px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card-size-menu {
-  position: relative;
-}
-
-.card-icon-button {
+.card-icon-button,
+.card-resize-handle {
   display: inline-grid;
-  width: var(--control-height);
-  min-width: var(--control-height);
-  height: var(--control-height);
-  min-height: var(--control-height);
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
   place-items: center;
-  border-color: var(--border-default);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
   background: var(--surface-panel);
   color: var(--text-primary);
 }
 
-.card-icon-button:hover {
+.card-icon-button:hover,
+.card-resize-handle:hover {
   background: var(--surface-page);
 }
 
@@ -95,91 +69,6 @@
 }
 
 .card-resize-handle {
-  display: inline-grid;
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  min-height: 28px;
-  place-items: center;
-  border-color: var(--border-default);
-  border-radius: var(--radius-card);
-  background: var(--surface-panel);
-  color: var(--text-primary);
   cursor: nwse-resize;
   touch-action: none;
-}
-
-.card-resize-handle:hover {
-  background: var(--surface-page);
-}
-
-.card-size-options {
-  position: absolute;
-  z-index: 2;
-  top: calc(100% + 4px);
-  left: 0;
-  display: grid;
-  min-width: 116px;
-  margin: 0;
-  padding: 4px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-  background: var(--surface-overlay);
-  box-shadow: 0 6px 16px rgb(8 20 29 / 18%);
-}
-
-.card-size-options li {
-  list-style: none;
-}
-
-.card-size-option {
-  justify-content: flex-start;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--text-primary);
-  text-align: left;
-}
-
-.card-size-option:hover,
-.card-size-option[aria-pressed="true"] {
-  background: var(--surface-page);
-}
-
-.card-layout-editor-actions {
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.card-layout-editor-primary-actions {
-  gap: 8px;
-}
-
-.ghost-btn {
-  background: var(--surface-panel);
-  color: var(--text-primary);
-}
-
-.ghost-btn,
-.primary-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 12px;
-}
-
-@media (max-width: 719px) {
-  .card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .card-layout-editor-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .card-layout-editor-primary-actions {
-    justify-content: flex-end;
-  }
 }

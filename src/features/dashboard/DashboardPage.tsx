@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil } from "lucide-react";
-import { CardLayoutEditor, cardSizeClass } from "../../components/cards/CardLayoutEditor";
+import { DirectCardLayout } from "../../components/cards/CardLayoutEditor";
 import { DashboardLayout } from "../../layouts/DashboardLayout";
 import type {
   DashboardCardId,
@@ -14,7 +13,6 @@ import type {
 import {
   defaultDashboardLayout,
   loadLayout,
-  resetLayout,
   saveLayout,
 } from "../../state/layoutStore";
 import { dashboardCardRegistry } from "./dashboardCards";
@@ -38,7 +36,6 @@ export function DashboardPage({
 }: DashboardPageProps) {
   const username = snapshot.authSession.username;
   const [layout, setLayout] = useState<PageLayout>(() => loadLayout(username, "dashboard"));
-  const [editing, setEditing] = useState(false);
   const currentDeviceId = snapshot.live.selectedDeviceId;
   const currentFrame = latestFrameForDevice(snapshot, currentDeviceId);
   const currentConnection = connectedDevices.find((device) => device.deviceId === currentDeviceId);
@@ -53,19 +50,11 @@ export function DashboardPage({
 
   useEffect(() => {
     setLayout(loadLayout(username, "dashboard"));
-    setEditing(false);
   }, [username]);
 
   const save = (nextLayout: PageLayout) => {
     saveLayout(username, "dashboard", nextLayout);
     setLayout(loadLayout(username, "dashboard"));
-    setEditing(false);
-  };
-
-  const reset = () => {
-    resetLayout(username, "dashboard");
-    setLayout(loadLayout(username, "dashboard"));
-    setEditing(false);
   };
 
   const summary = (
@@ -81,22 +70,20 @@ export function DashboardPage({
         <div><span>急停状态</span><strong>{snapshot.runtimeDiagnostics.emergencyLatched ? "已锁定" : "正常"}</strong></div>
         <div><span>全局故障</span><strong title={globalFault}>{globalFault}</strong></div>
       </div>
-      <button className="ghost-btn" onClick={() => setEditing((value) => !value)} type="button">
-        <Pencil aria-hidden="true" size={16} />
-        编辑布局
-      </button>
     </div>
   );
 
   return (
     <DashboardLayout summary={summary}>
       <div className="feature-page-stack">
-        <div className="feature-card-grid" aria-label="总览卡片">
-          {layout.cards.filter((card) => card.visible).map((card) => {
+        <DirectCardLayout
+          layout={layout}
+          onLayoutChange={save}
+          childrenForCard={(card) => {
             const definition = dashboardCardRegistry[card.id as DashboardCardId];
             const Icon = definition.icon;
             return (
-              <article className={`feature-card ${cardSizeClass[card.size]}`} key={card.id}>
+              <>
                 <header className="feature-card-header">
                   <div>
                     <Icon aria-hidden="true" size={17} />
@@ -106,21 +93,10 @@ export function DashboardPage({
                 <div className="feature-card-body">
                   {definition.render({ snapshot, connectedDevices, deviceStatuses, recorderStatus, sessions })}
                 </div>
-              </article>
+              </>
             );
-          })}
-        </div>
-        {editing ? (
-          <div className="layout-editor-panel">
-            <CardLayoutEditor
-              key={`${username}:${JSON.stringify(layout)}`}
-              layout={layout}
-              onCancel={() => setEditing(false)}
-              onReset={reset}
-              onSave={save}
-            />
-          </div>
-        ) : null}
+          }}
+        />
       </div>
     </DashboardLayout>
   );

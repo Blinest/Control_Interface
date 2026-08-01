@@ -232,13 +232,6 @@
   text-align: center;
 }
 
-.layout-editor-panel {
-  padding: 14px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-  background: var(--surface-panel);
-}
-
 @media (max-width: 1439px) {
   .feature-card-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -6,10 +6,9 @@ import {
   Cpu,
   Gauge,
   ListOrdered,
-  Pencil,
   Radio,
 } from "lucide-react";
-import { CardLayoutEditor, cardSizeClass } from "../../components/cards/CardLayoutEditor";
+import { DirectCardLayout } from "../../components/cards/CardLayoutEditor";
 import RobotScene from "../../RobotScene";
 import type {
   DeviceRuntimeStatusView,
@@ -21,7 +20,6 @@ import type {
 } from "../../softuiTypes";
 import {
   loadLayout,
-  resetLayout,
   saveLayout,
 } from "../../state/layoutStore";
 import { framesForDevice, latestFrameForDevice } from "./deviceTelemetry";
@@ -197,23 +195,14 @@ export const monitorCardRegistry: Record<MonitorCardId, MonitorCardDefinition> =
 export function MonitorPane(props: MonitorPaneProps) {
   const username = props.snapshot.authSession.username;
   const [layout, setLayout] = useState<PageLayout>(() => loadLayout(username, "workspace-monitor"));
-  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     setLayout(loadLayout(username, "workspace-monitor"));
-    setEditing(false);
   }, [username]);
 
   const save = (nextLayout: PageLayout) => {
     saveLayout(username, "workspace-monitor", nextLayout);
     setLayout(loadLayout(username, "workspace-monitor"));
-    setEditing(false);
-  };
-
-  const reset = () => {
-    resetLayout(username, "workspace-monitor");
-    setLayout(loadLayout(username, "workspace-monitor"));
-    setEditing(false);
   };
 
   return (
@@ -223,40 +212,26 @@ export function MonitorPane(props: MonitorPaneProps) {
           <span>设备监控</span>
           <strong title={props.currentDeviceId}>{props.currentDeviceId || "未选择设备"}</strong>
         </div>
-        <button className="ghost-btn" onClick={() => setEditing((value) => !value)} type="button">
-          <Pencil aria-hidden="true" size={16} />
-          编辑布局
-        </button>
       </div>
 
-      <div className="feature-card-grid monitor-card-grid" aria-label="设备监控卡片">
-        {layout.cards.filter((card) => card.visible).map((card) => {
+      <DirectCardLayout
+        layout={layout}
+        onLayoutChange={save}
+        childrenForCard={(card) => {
           const definition = monitorCardRegistry[card.id as MonitorCardId];
           const Icon = definition.icon;
           return (
-            <article className={`feature-card monitor-card ${cardSizeClass[card.size]}`} key={card.id}>
+            <>
               <header className="feature-card-header">
                 <div><Icon aria-hidden="true" size={17} /><h2>{definition.title}</h2></div>
               </header>
               <div className={`feature-card-body ${card.id === "model3d" ? "model-card-body" : ""}`}>
                 {definition.render(props)}
               </div>
-            </article>
+            </>
           );
-        })}
-      </div>
-
-      {editing ? (
-        <div className="layout-editor-panel">
-          <CardLayoutEditor
-            key={`${username}:${JSON.stringify(layout)}`}
-            layout={layout}
-            onCancel={() => setEditing(false)}
-            onReset={reset}
-            onSave={save}
-          />
-        </div>
-      ) : null}
+        }}
+      />
     </div>
   );
 }

@@ -47,6 +47,7 @@ export function CardResizeHandle({ label, size, onResize }: CardResizeHandleProp
       className="card-resize-handle"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
+      onPointerCancel={onPointerUp}
       onPointerUp={onPointerUp}
       type="button"
     >
