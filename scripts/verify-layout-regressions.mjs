@@ -18,6 +18,11 @@ const shell = readFileSync(new URL("../src/styles/shell.css", import.meta.url), 
 const base = readFileSync(new URL("../src/styles/base.css", import.meta.url), "utf8");
 const layoutsCss = readFileSync(new URL("../src/styles/layouts.css", import.meta.url), "utf8");
 
+assert.doesNotMatch(css, /\.workspace-control-grid\s+\.panel:nth-child/, "workspace layout must not depend on panel order");
+assert.doesNotMatch(css, /display:\s*none\s*!important/, "layout must not hide functional controls with !important");
+assert.doesNotMatch(css, /\.playback-bar\s*\{[\s\S]*display:\s*none/, "playback bar must not be globally hidden");
+assert.doesNotMatch(css, /grid-template-rows:\s*minmax\([^)]+\)\s*minmax\([^)]+\)\s*minmax\([^)]+\)/, "App.css must not own fixed page row recipes");
+
 assert.match(shell, /\.global-status-bar[\s\S]*min-width:\s*0/, "global status bar must constrain its flexible content");
 assert.match(shell, /\.emergency-stop-button[\s\S]*flex:\s*0\s+0\s+auto/, "emergency stop must remain visible beside status details");
 assert.match(shell, /\.app-content\s*\{[\s\S]*grid-template-rows:\s*minmax\(0,\s*1fr\)/, "app content must keep a definite content row");

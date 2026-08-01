@@ -118,3 +118,228 @@
     overflow: auto;
   }
 }
+
+/* ---- playback bar ---- */
+
+.playback-bar {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.theme-light .playback-bar {
+  border-bottom-color: rgba(17, 28, 40, 0.1);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.playback-bar.active {
+  border-bottom-color: rgba(255, 176, 32, 0.2);
+}
+
+.playback-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  color: #f4c86d;
+  background: rgba(255, 176, 32, 0.08);
+  border-bottom: 1px solid rgba(255, 176, 32, 0.12);
+}
+
+.playback-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  flex-wrap: wrap;
+}
+
+.playback-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.playback-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.playback-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.playback-btn.primary {
+  width: 36px;
+  height: 36px;
+  border-color: rgba(59, 164, 255, 0.25);
+  color: #7cc0ff;
+}
+
+.playback-btn.primary:hover {
+  background: rgba(59, 164, 255, 0.1);
+}
+
+.playback-btn.primary.is-playing {
+  border-color: rgba(244, 200, 109, 0.25);
+  color: #f4c86d;
+}
+
+.playback-btn.primary.is-playing:hover {
+  background: rgba(244, 200, 109, 0.1);
+}
+
+.theme-light .playback-btn {
+  border-color: rgba(17, 28, 40, 0.1);
+}
+
+.theme-light .playback-btn:hover {
+  background: rgba(17, 28, 40, 0.04);
+}
+
+.playback-timeline-wrap {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.playback-timeline {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  position: relative;
+  cursor: pointer;
+  min-height: 6px;
+}
+
+.theme-light .playback-timeline {
+  background: rgba(17, 28, 40, 0.08);
+}
+
+.playback-timeline-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3ba4ff, #42c97a);
+  transition: width 50ms linear;
+}
+
+.playback-timeline-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #3ba4ff;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: left 50ms linear;
+}
+
+.playback-time-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(231, 238, 247, 0.7);
+  white-space: nowrap;
+}
+
+.theme-light .playback-time-display {
+  color: rgba(24, 35, 47, 0.7);
+}
+
+.playback-time-total {
+  color: rgba(231, 238, 247, 0.45);
+}
+
+.theme-light .playback-time-total {
+  color: rgba(24, 35, 47, 0.45);
+}
+
+.playback-speed-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.playback-speed-label {
+  font-size: 0.74rem;
+  color: rgba(231, 238, 247, 0.55);
+  margin-right: 2px;
+}
+
+.theme-light .playback-speed-label {
+  color: rgba(24, 35, 47, 0.55);
+}
+
+.playback-speed-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 24px;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.74rem;
+  cursor: pointer;
+  padding: 0 6px;
+}
+
+.playback-speed-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.playback-speed-btn.active {
+  background: rgba(59, 164, 255, 0.15);
+  border-color: rgba(59, 164, 255, 0.3);
+  color: #7cc0ff;
+}
+
+.theme-light .playback-speed-btn {
+  border-color: rgba(17, 28, 40, 0.1);
+}
+
+.theme-light .playback-speed-btn.active {
+  background: rgba(59, 164, 255, 0.12);
+  border-color: rgba(59, 164, 255, 0.25);
+}
+
+.playback-session-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: rgba(231, 238, 247, 0.45);
+}
+
+.theme-light .playback-session-info {
+  color: rgba(24, 35, 47, 0.45);
+}
+
+.playback-frame-info {
+  color: rgba(231, 238, 247, 0.35);
+}
+
+.theme-light .playback-frame-info {
+  color: rgba(24, 35, 47, 0.35);
+}
