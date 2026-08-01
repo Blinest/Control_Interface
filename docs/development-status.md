@@ -6,7 +6,9 @@
 
 当前工作区：`D:\APP\ControlUI\softui-desktop\.worktrees\ui-foundation-shell`
 
-验收修复提交前 HEAD：`18e83f7 docs: record appearance layout acceptance`
+最新已验证代码/文档基线：`a5e9124 docs: record clean acceptance gate`
+
+当前工作区 HEAD：以 `git rev-parse HEAD` 的输出为准。由于本文档提交不能可靠地自指其自身提交哈希，以上记录的是提交本文档前最后一次已验证的基线。
 
 ## 一、当前开发状态
 
