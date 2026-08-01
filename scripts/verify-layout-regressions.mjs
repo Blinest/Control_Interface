@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/App.css", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const dataCss = readFileSync(new URL("../src/components/data/data.css", import.meta.url), "utf8");
 const sessions = readFileSync(new URL("../src/features/sessions/SessionsPage.tsx", import.meta.url), "utf8");
 const sessionsCss = readFileSync(new URL("../src/features/sessions/sessions.css", import.meta.url), "utf8");
+const deviceWorkspaceCss = readFileSync(new URL("../src/features/device-workspace/deviceWorkspace.css", import.meta.url), "utf8");
 const chartsCss = readFileSync(new URL("../src/features/charts/charts.css", import.meta.url), "utf8");
 const logs = readFileSync(new URL("../src/features/logs/LogsPage.tsx", import.meta.url), "utf8");
 const logsCss = readFileSync(new URL("../src/features/logs/logs.css", import.meta.url), "utf8");
@@ -31,6 +33,7 @@ assert.doesNotMatch(shell, /\.page-tabs/, "top page tabs must be removed");
 assert.match(shell, /grid-template-columns: 224px/, "sidebar must stay fixed width");
 assert.doesNotMatch(shell, /@media \(max-width: 1439px\)/, "sidebar must not auto-collapse");
 assert.match(css, /\.empty-state[\s\S]*min-height/, "shared empty state must reserve stable space");
+assert.match(dataCss, /\.empty-state-fill[\s\S]*height:\s*100%/, "fill empty states must occupy their primary region");
 assert.match(css, /\.path-value[\s\S]*(overflow-wrap|word-break):\s*anywhere/, "path values must wrap safely");
 assert.match(css, /\.primary-btn:disabled[\s\S]*color:/, "primary disabled button needs explicit text color");
 assert.match(css, /\.ghost-btn:disabled[\s\S]*color:/, "ghost disabled button needs explicit text color");
@@ -47,8 +50,10 @@ assert.match(logFilters, /level === "debug"[\s\S]*\? "bug"/, "bug filter should 
 assert.match(settingsCss, /\.settings-navigation-tabs/, "settings page needs categorized navigation");
 assert.match(settings, /SettingsLayout/, "settings page must use categorized layout");
 assert.match(settingsCss, /\.settings-section\s*\{[\s\S]*max-width:\s*none/, "settings content should fill the main area");
-assert.match(dashboardCss, /grid-auto-rows:\s*minmax\(0,\s*1fr\)/, "dashboard cards should fill the available height");
+assert.match(dashboardCss, /grid-auto-rows:\s*minmax\(150px,\s*1fr\)/, "dashboard cards should keep a usable minimum height while filling space");
+assert.match(dashboardCss, /\.feature-card-grid[\s\S]*align-content:\s*stretch/, "dashboard cards should stretch to fill their grid");
 assert.match(dashboardCss, /\.feature-card-grid\s*\{[\s\S]*height:\s*100%/, "dashboard card grid should fill its container");
+assert.doesNotMatch(deviceWorkspaceCss, /grid-template-rows:\s*minmax\(92px,\s*108px\)\s*minmax\(360px,\s*1\.45fr\)\s*minmax\(214px,\s*0\.82fr\)/, "device workspace must not restore fixed panel row heights");
 for (const selector of ["settings-grid", "logs-page-layout", "sessions-page-layout", "charts-page-layout", "log-filter-bar"]) {
   assert.doesNotMatch(css, new RegExp(`\\.${selector}`), `legacy ${selector} must be removed from App.css`);
 }

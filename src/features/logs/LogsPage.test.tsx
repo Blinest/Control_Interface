@@ -33,4 +33,15 @@ describe("LogsPage", () => {
 
     expect(screen.getByRole("complementary", { name: "日志详情" })).toBeVisible();
   });
+
+  it("clears an active search from the empty result state", async () => {
+    const user = userEvent.setup();
+    render(<LogsPage logs={fixtureLogs} onExportDiagnostics={vi.fn()} />);
+
+    await user.type(screen.getByRole("textbox"), "not-present");
+
+    await user.click(screen.getByRole("button", { name: "清除搜索" }));
+
+    expect(screen.getByRole("button", { name: fixtureLogs[0].message })).toBeVisible();
+  });
 });

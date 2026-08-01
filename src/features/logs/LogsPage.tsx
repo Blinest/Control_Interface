@@ -31,6 +31,8 @@ export default function LogsPage({ logs, onExportDiagnostics }: LogsPageProps) {
     [logs, query, selectedLevels],
   );
   const selectedEntry = logs.find((entry) => entry.id === selectedId) ?? null;
+  const hasActiveSearch = query.trim().length > 0;
+  const filterContext = `已选 ${selectedLevels.length} 个级别${hasActiveSearch ? `，搜索：${query}` : ""}`;
 
   return (
     <TableLayout
@@ -60,8 +62,16 @@ export default function LogsPage({ logs, onExportDiagnostics }: LogsPageProps) {
               ? "运行状态、协议错误和审计事件会显示在这里。"
               : "切换级别筛选或清空搜索词查看对应记录。"
           }
-          context={`已选 ${selectedLevels.length} 个级别`}
+          context={filterContext}
+          action={
+            hasActiveSearch ? (
+              <button type="button" className="ghost-btn" onClick={() => setQuery("")}>
+                清除搜索
+              </button>
+            ) : null
+          }
           icon={Logs}
+          density="fill"
         />
       ) : (
         <div className="logs-table-region">

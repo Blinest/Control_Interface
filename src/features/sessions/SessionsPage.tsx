@@ -80,6 +80,7 @@ export default function SessionsPage({
               </button>
             }
             icon={Database}
+            density="fill"
           />
         ) : (
           <SessionsTable

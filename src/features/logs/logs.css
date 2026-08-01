@@ -59,6 +59,10 @@
   overflow: auto;
 }
 
+.table-layout-content > .layout-scroll-region > .data-empty-state-fill {
+  min-height: 100%;
+}
+
 .logs-table {
   width: 100%;
   border-collapse: collapse;

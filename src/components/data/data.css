@@ -1,10 +1,21 @@
 .data-empty-state {
-  height: 100%;
-  min-height: 280px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+}
+
+.empty-state-compact {
+  min-height: 120px;
+}
+
+.empty-state-comfortable {
+  min-height: 280px;
+}
+
+.empty-state-fill {
+  min-height: 100%;
+  height: 100%;
 }
 
 .data-empty-state-inner {

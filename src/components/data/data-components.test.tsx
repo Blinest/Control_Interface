@@ -23,6 +23,20 @@ describe("data components", () => {
     expect(screen.getByRole("button", { name: "开始录制" })).toBeVisible();
   });
 
+  it("supports a fill density for empty primary regions", () => {
+    const { container } = render(
+      <EmptyState
+        title="暂无录制会话"
+        reason="尚未开始录制"
+        context="保存目录：D:\\APP\\ControlUI\\data"
+        density="fill"
+        action={<button>开始录制</button>}
+      />,
+    );
+
+    expect(container.querySelector(".data-empty-state")).toHaveClass("empty-state-fill");
+  });
+
   it("keeps the full path available and supports compact mode", () => {
     const path = "D:\\APP\\ControlUI\\sessions\\very-long-name";
     const { rerender } = render(<PathValue value={path} />);

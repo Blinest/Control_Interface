@@ -45,6 +45,7 @@ describe("SessionsPage", () => {
     expect(screen.getByRole("heading", { name: "暂无录制会话" })).toBeVisible();
     expect(screen.getByText(/保存目录/)).toBeVisible();
     expect(screen.getByRole("button", { name: "开始录制" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "暂无录制会话" }).closest(".data-empty-state")).toHaveClass("empty-state-fill");
   });
 
   it("confirms before deleting a session", async () => {
