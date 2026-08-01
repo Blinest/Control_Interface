@@ -23,6 +23,12 @@
 - `git diff --check`：通过，退出码 0。
 - `npm.cmd run tauri -- build`：通过，退出码 0；生成 release EXE、MSI、NSIS 安装包。
 
+## 清洁工作区门禁
+
+- `src-tauri/Cargo.toml` 的索引和工作区 SHA-1 均为 `bc65ec7391f56bc88d44e9aa265b35049fef0f5e`，确认不存在文本或产品内容差异。
+- 使用 `git update-index --refresh -- src-tauri/Cargo.toml` 仅刷新该路径的 Git 索引元数据。
+- 随后 `git status --short` 退出码为 0 且无输出，`git diff --check` 退出码为 0。
+
 ## 截图产物
 
 - `artifacts/visual-smoke/dashboard-{light,dark}-{desktop,min-desktop}.png`

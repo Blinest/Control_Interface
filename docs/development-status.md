@@ -6,7 +6,7 @@
 
 当前工作区：`D:\APP\ControlUI\softui-desktop\.worktrees\ui-foundation-shell`
 
-当前 HEAD：`50137e8 test: harden visual smoke guards`（验收记录提交前）
+验收修复提交前 HEAD：`18e83f7 docs: record appearance layout acceptance`
 
 ## 一、当前开发状态
 
@@ -128,6 +128,7 @@
 - 中文文案可读性、浅色/深色主题对比、应用壳层滚动条、最小窗口可达性、直接拖拽/拉伸卡片与视觉截图验收五项指标均达到 100%。
 - `artifacts/visual-smoke/` 已生成总览、工作区、曲线、会话、日志、设置六个路由在浅色/深色及 1600x980/1280x800 下的 24 张截图。
 - release 产物已在 `src-tauri\target\release\` 下重新生成。
+- `git status --short` 在仅刷新 `src-tauri/Cargo.toml` 的索引元数据后退出码为 0 且无输出；索引与工作区 SHA-1 一致，未修改产品内容。
 - 详细命令结果和产物清单见 `docs\appearance-layout-acceptance-report.md`。
 
 ### 8. 已知未收口事项
