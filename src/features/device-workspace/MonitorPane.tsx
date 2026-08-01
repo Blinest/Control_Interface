@@ -151,7 +151,9 @@ export const monitorCardRegistry: Record<MonitorCardId, MonitorCardDefinition> =
                   role="status"
                 />
               </div>
-              <strong data-testid="monitor-motor-summary-value">{motor.positionMm.toFixed(1)} mm</strong>
+              <strong className="monitor-motor-summary-value" data-testid="monitor-motor-summary-value">
+                {motor.positionMm.toFixed(1)} mm
+              </strong>
             </div>
           ))}
         </div>

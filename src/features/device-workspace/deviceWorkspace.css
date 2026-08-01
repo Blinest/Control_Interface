@@ -401,6 +401,13 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-ok) 18%, transparent);
 }
 
+.monitor-motor-summary-value {
+  display: block;
+  color: var(--text-primary);
+  font: var(--font-heading);
+  line-height: 1.2;
+}
+
 .workspace-empty-state {
   display: grid;
   min-height: 180px;

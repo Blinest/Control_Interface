@@ -58,6 +58,9 @@ assert.match(chartsCss, /\.channel-item\s*\{[\s\S]*min-width:\s*0/, "chart chann
 assert.doesNotMatch(css, /\.charts-main\s*\{[\s\S]*grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\)/, "App.css must not keep the stale chart row recipe that underfills the chart page");
 assert.match(chartsCss, /\.charts-subplot-grid\s*\{[\s\S]*grid-template-rows:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/, "charts page must reserve a filled six-subplot grid");
 assert.match(chartsCss, /\.chart-subplot-canvas\s*\{[\s\S]*height:\s*100%/, "each chart subplot canvas must fill its panel");
+assert.match(layoutsCss, /\.chart-layout:has\(\.chart-channels\.is-collapsed\)[\s\S]*grid-template-columns:\s*42px\s+minmax\(0,\s*1fr\)/, "chart sidebar must collapse to a narrow rail instead of stealing chart space");
+assert.match(layoutsCss, /\.responsive-rail-toggle/, "responsive rails need a visible collapse control");
+assert.doesNotMatch(layoutsCss, /\.responsive-rail\.is-collapsed\s*\{[^}]*display:\s*none/, "collapsed rails must remain available for re-expansion");
 assert.match(logs, /TableLayout/, "LogsPage must use table-style page layout");
 for (const label of ["warning", "error", "info", "bug"]) {
   assert.match(logFilters, new RegExp(`"${label}"`), `logs page needs ${label} filter`);
@@ -75,9 +78,13 @@ for (const selector of ["settings-grid", "logs-page-layout", "sessions-page-layo
 }
 assert.doesNotMatch(css, /border-radius:\s*8px/, "shared radius must use the design token");
 assert.match(sessions, /RecorderWorkbench/, "SessionsPage must merge recorder and stats into one workbench");
-assert.doesNotMatch(layoutsCss, /display:\s*none[\s\S]*workbench-context|workbench-context[\s\S]*display:\s*none/);
-assert.doesNotMatch(layoutsCss, /chart-channels[\s\S]*display:\s*none/);
-assert.doesNotMatch(layoutsCss, /settings-navigation[\s\S]*display:\s*none/);
+for (const selector of ["workbench-context", "chart-channels", "settings-navigation"]) {
+  assert.doesNotMatch(
+    layoutsCss,
+    new RegExp(`\\.${selector}(?:\\.[\\w-]+)?\\s*\\{[^}]*display:\\s*none`),
+    `${selector} rail must stay reachable`,
+  );
+}
 assert.doesNotMatch(
   sessions,
   /\/\*\s*Left: Recording control panel\s*\*\/[\s\S]*\/\*\s*Right: Session history table\s*\*\//,

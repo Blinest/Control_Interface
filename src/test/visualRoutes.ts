@@ -30,7 +30,16 @@ export function getVisualSmokeResponse(command: string): unknown {
     case "tick_snapshot":
       return authenticatedSnapshot;
     case "list_serial_ports":
+      return [];
     case "list_connected_devices":
+      return [{
+        deviceId: "softui-sim-01",
+        connectionId: "conn-01",
+        portName: "SIM",
+        baudRate: 115200,
+        state: "ready",
+        connectedAtMs: Date.now() - 12_000,
+      }];
     case "list_users":
       return [];
     case "list_connection_profiles":

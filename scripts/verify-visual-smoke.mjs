@@ -242,6 +242,7 @@ async function verifyRoute(browser, route, theme, viewport) {
   await page.addInitScript((selectedTheme) => {
     localStorage.setItem("softui:theme:anonymous", selectedTheme);
     localStorage.setItem("softui:theme:visual-smoke", selectedTheme);
+    localStorage.setItem("softui:currentDeviceId", "softui-sim-01");
     window.__SOFTUI_VISUAL_SMOKE__ = true;
   }, theme);
 
@@ -261,8 +262,14 @@ async function verifyRoute(browser, route, theme, viewport) {
 
     if (route === "/#/charts") {
       await expectVisible(page, ".charts-sidebar");
+      await expectVisible(page, ".responsive-rail-toggle");
       await expectVisible(page, ".charts-subplot-grid");
       await assertChartsFillPrimaryRegion(page);
+    }
+    if (route === "/#/workspace") {
+      await expectVisible(page, ".monitor-motor-summary-cell");
+      await expectVisible(page, ".monitor-motor-status-lamp");
+      await expectVisible(page, ".monitor-motor-summary-value");
     }
     if (route === "/#/sessions") {
       await expectVisible(page, ".recorder-workbench");
