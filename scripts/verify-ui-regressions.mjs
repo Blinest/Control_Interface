@@ -1,9 +1,23 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { mojibakePattern } from "./mojibake-denylist.mjs";
 
 const css = readFileSync(new URL("../src/App.css", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const fallbackSnapshot = readFileSync(new URL("../src/state/fallbackSnapshot.ts", import.meta.url), "utf8");
+const visibleSources = [
+  "../src/App.tsx",
+  "../src/components/feedback/ErrorBoundary.tsx",
+  "../src/components/cards/CardLayoutEditor.tsx",
+  "../src/features/dashboard/DashboardPage.tsx",
+  "../src/features/device-workspace/DeviceWorkspacePage.tsx",
+  "../src/features/charts/ChartsPage.tsx",
+  "../src/features/logs/LogsPage.tsx",
+  "../src/features/sessions/SessionsPage.tsx",
+  "../src/features/settings/SettingsPage.tsx",
+]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+  .join("\n");
 
 assert.match(
   css,
@@ -21,6 +35,12 @@ assert.match(
   fallbackSnapshot,
   /document\.documentElement\.dataset\.theme/,
   "initial snapshot should preserve the pre-rendered theme before backend bootstrap",
+);
+
+assert.doesNotMatch(
+  visibleSources,
+  mojibakePattern,
+  "visible copy must not contain mojibake",
 );
 
 assert.match(
