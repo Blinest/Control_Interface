@@ -22,6 +22,14 @@ assert.doesNotMatch(css, /\.workspace-control-grid\s+\.panel:nth-child/, "worksp
 assert.doesNotMatch(css, /display:\s*none\s*!important/, "layout must not hide functional controls with !important");
 assert.doesNotMatch(css, /\.playback-bar\s*\{[\s\S]*display:\s*none/, "playback bar must not be globally hidden");
 assert.doesNotMatch(css, /grid-template-rows:\s*minmax\([^)]+\)\s*minmax\([^)]+\)\s*minmax\([^)]+\)/, "App.css must not own fixed page row recipes");
+for (const selector of ["dashboard-grid", "workspace-table-grid", "charts-grid", "playback-grid", "playback-page-grid", "workspace-overview-grid"]) {
+  assert.doesNotMatch(css, new RegExp(`\\.${selector}\\b`), `dead ${selector} layout must be removed from App.css`);
+}
+assert.doesNotMatch(
+  css,
+  /\.(?:dashboard|workspace|charts|playback)[\w-]*grid\b[^{,]*:(?:first-child|last-child|nth-child\()/,
+  "feature grid layouts must not depend on child order",
+);
 
 assert.match(shell, /\.global-status-bar[\s\S]*min-width:\s*0/, "global status bar must constrain its flexible content");
 assert.match(shell, /\.emergency-stop-button[\s\S]*flex:\s*0\s+0\s+auto/, "emergency stop must remain visible beside status details");

@@ -412,40 +412,8 @@ button {
   align-items: start;
 }
 
-.dashboard-grid {
-  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 0.72fr);
-  align-items: stretch;
-}
-
-.dashboard-grid .panel {
-  min-height: 0;
-}
-
-.dashboard-grid .panel.wide {
-  grid-column: auto;
-}
-
-.dashboard-grid .panel:first-child {
-  grid-row: 1 / 2;
-}
-
-.dashboard-grid .panel:nth-child(4) {
-  grid-column: 2 / 3;
-}
-
 .workspace-grid {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
-  grid-template-rows: minmax(0, 1fr);
-  align-items: stretch;
-}
-
-.workspace-overview-grid {
-  grid-template-rows: minmax(0, 1fr);
-}
-
-.workspace-table-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
 }
@@ -853,12 +821,6 @@ button {
   padding-block: 4px;
 }
 
-.workspace-overview-grid .button-stack .ghost-btn {
-  min-width: 0;
-  padding-inline: 7px;
-  font-size: 0.92rem;
-}
-
 .workspace-grid .panel.wide {
   grid-column: 1 / -1;
 }
@@ -996,16 +958,6 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.workspace-table-grid .data-table {
-  grid-template-rows: auto repeat(6, minmax(0, 1fr));
-}
-
-.workspace-table-grid .data-row {
-  min-height: 0;
-  font-size: 0.92rem;
-  line-height: 1.12;
 }
 
 .theme-light .data-row {
@@ -1408,29 +1360,6 @@ button {
   overflow: hidden;
 }
 
-.charts-grid {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  align-items: stretch;
-}
-
-.charts-grid .panel.wide {
-  grid-column: auto;
-}
-
-.charts-grid .chart-list {
-  height: 100%;
-  min-height: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-}
-
-.charts-grid .chart-card {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 0;
-}
-
 .theme-light .chart-frame {
   background:
     linear-gradient(rgba(17, 28, 40, 0.08) 1px, transparent 1px),
@@ -1623,16 +1552,8 @@ button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dashboard-grid {
-    grid-template-columns: minmax(0, 1.8fr) minmax(260px, 0.9fr);
-  }
-
   .workspace-grid {
     grid-template-columns: minmax(0, 1fr) minmax(320px, 0.82fr);
-  }
-
-  .charts-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -2338,27 +2259,6 @@ button {
   overflow: hidden;
 }
 
-.dashboard-grid {
-  grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.9fr);
-  grid-template-rows: minmax(0, 1.1fr) minmax(0, 0.95fr);
-}
-
-.dashboard-grid .panel {
-  min-height: 0;
-}
-
-.dashboard-grid .panel:nth-child(4) {
-  grid-column: 2;
-}
-
-.workspace-overview-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.92fr);
-}
-
-.workspace-table-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 .workspace-split {
   flex: 1 1 auto;
   min-height: 0;
@@ -2431,10 +2331,6 @@ button {
 
 .theme-light .data-row.head {
   background: rgba(17, 28, 40, 0.025);
-}
-
-.workspace-table-grid .data-table {
-  grid-template-rows: auto repeat(6, minmax(30px, auto));
 }
 
 .motor-inline-bar {
@@ -2616,10 +2512,6 @@ button {
     overflow: hidden;
   }
 
-  .dashboard-grid .panel:nth-child(4) {
-    grid-column: auto;
-  }
-
   .motor-control-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: repeat(3, minmax(96px, 1fr));
@@ -2649,23 +2541,6 @@ button {
   .stack-item strong {
     max-width: 100%;
   }
-}
-
-.workspace-overview-grid {
-  align-items: start;
-}
-
-.workspace-overview-grid .panel {
-  height: auto;
-  max-height: 100%;
-}
-
-.workspace-overview-grid .panel:nth-child(2) {
-  align-self: stretch;
-}
-
-.workspace-overview-grid .panel:nth-child(2) .port-list {
-  flex: 1 1 auto;
 }
 
 @media (max-height: 680px), (max-width: 1120px) {
@@ -3118,16 +2993,6 @@ select option,
   color: #18232f;
 }
 
-.workspace-overview-grid {
-  grid-template-columns: minmax(0, 0.98fr) minmax(320px, 0.72fr);
-  grid-auto-rows: auto;
-}
-
-.workspace-overview-grid .panel {
-  height: auto;
-  min-height: 0;
-}
-
 .status-strip-actions {
   justify-self: stretch;
   display: grid;
@@ -3206,15 +3071,6 @@ select option,
   height: 24px;
 }
 
-.workspace-table-grid {
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
-  grid-template-rows: minmax(0, auto) minmax(0, auto);
-}
-
-.workspace-table-grid .panel {
-  height: auto;
-}
-
 .data-table {
   overflow: hidden;
   border-radius: var(--radius-card);
@@ -3267,18 +3123,6 @@ select option,
 
 .charts-readout {
   max-height: 74px;
-}
-
-.playback-grid,
-.playback-page-grid {
-  align-content: start;
-  grid-auto-rows: auto;
-}
-
-.playback-grid .panel,
-.playback-page-grid .panel {
-  height: auto;
-  min-height: 0;
 }
 
 
@@ -3363,79 +3207,7 @@ select option,
   }
 }
 
-/* ---- overview workspace final fit ---- */
-
-.workspace-overview-grid {
-  grid-template-columns: 1fr;
-  grid-template-rows: minmax(0, auto) minmax(0, 1fr) !important;
-  align-content: stretch;
-  align-items: stretch;
-}
-
-.workspace-overview-grid .panel.wide,
-.workspace-overview-grid .panel:nth-child(1),
-.workspace-overview-grid .panel:nth-child(2) {
-  grid-column: 1 / -1;
-}
-
-.workspace-overview-grid .panel:nth-child(1) {
-  grid-row: 1;
-}
-
-.workspace-overview-grid .panel:nth-child(2) {
-  grid-row: 2;
-  height: 100%;
-}
-
-.workspace-overview-grid .workspace-split {
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
-  gap: 10px;
-}
-
-.workspace-overview-grid .stack-item {
-  min-height: 30px;
-  padding-block: 5px;
-}
-
-.workspace-overview-grid .button-stack {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(110px, 1fr));
-  gap: 8px;
-}
-
-.workspace-overview-grid .button-stack .ghost-btn {
-  min-height: 32px;
-}
-
-.workspace-overview-grid .device-grid {
-  grid-template-columns: repeat(auto-fit, minmax(250px, 320px));
-  gap: 8px;
-}
-
-.workspace-overview-grid .port-list {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px;
-  align-content: start;
-}
-
-.workspace-overview-grid .port-card {
-  min-height: 56px;
-  padding: 8px 10px;
-}
-
 @media (max-height: 760px) {
-  .workspace-overview-grid {
-    grid-template-rows: minmax(0, auto) minmax(0, 1fr) !important;
-  }
-
-  .workspace-overview-grid .stack-item:nth-child(4),
-  .workspace-overview-grid .progress-track {
-    display: none;
-  }
-
-  .workspace-overview-grid .port-card {
-    min-height: 48px;
-  }
 }
 
 /* ---- layout system phase 1 ---- */
