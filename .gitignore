@@ -45,6 +45,7 @@ exports/
 *.jsonl
 
 # Local screenshots / diagnostics
+artifacts/visual-smoke/
 layout-*.png
 *-final.png
 diagnostics

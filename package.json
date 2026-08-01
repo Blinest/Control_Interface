@@ -10,6 +10,7 @@
     "test:unit:watch": "vitest",
     "test:ui-regressions": "node scripts/verify-ui-regressions.mjs",
     "test:layout-regressions": "node scripts/verify-layout-regressions.mjs",
+    "test:visual-smoke": "node scripts/verify-visual-smoke.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -28,6 +29,7 @@
     "uplot": "^1.6.32"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",

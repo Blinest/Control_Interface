@@ -1,0 +1,214 @@
+import { chromium } from "@playwright/test";
+import { spawn } from "node:child_process";
+import { mkdir } from "node:fs/promises";
+import net from "node:net";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { mojibakePattern } from "./mojibake-denylist.mjs";
+
+const routes = ["/#/dashboard", "/#/workspace", "/#/charts", "/#/sessions", "/#/logs", "/#/settings"];
+const viewports = [
+  { width: 1600, height: 980, name: "desktop" },
+  { width: 1280, height: 800, name: "min-desktop" },
+];
+const themes = ["light", "dark"];
+const baseUrl = "http://127.0.0.1:1421";
+const rootDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const artifactDirectory = resolve(rootDirectory, "artifacts", "visual-smoke");
+
+function portIsOpen(port) {
+  return new Promise((resolvePort) => {
+    const socket = net.createConnection({ host: "127.0.0.1", port });
+    const done = (open) => {
+      socket.destroy();
+      resolvePort(open);
+    };
+    socket.once("connect", () => done(true));
+    socket.once("error", () => done(false));
+    socket.setTimeout(500, () => done(false));
+  });
+}
+
+async function waitForServer(server, output) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (server.exitCode !== null) throw new Error(`Vite exited before starting:\n${output()}`);
+    try {
+      const response = await fetch(baseUrl);
+      if (response.ok) return;
+    } catch {
+      // The server has not started accepting requests yet.
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+  }
+  throw new Error(`Timed out waiting for Vite on port 1421:\n${output()}`);
+}
+
+async function startViteIfNeeded() {
+  if (await portIsOpen(1421)) return null;
+
+  let output = "";
+  const npmCommand = process.platform === "win32" ? "cmd.exe" : "npm";
+  const npmArgs = process.platform === "win32"
+    ? ["/d", "/s", "/c", "npm.cmd run dev -- --host 127.0.0.1"]
+    : ["run", "dev", "--", "--host", "127.0.0.1"];
+  const server = spawn(npmCommand, npmArgs, {
+    cwd: rootDirectory,
+    shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const appendOutput = (chunk) => {
+    output = `${output}${chunk}`.slice(-8_000);
+  };
+  server.stdout.on("data", appendOutput);
+  server.stderr.on("data", appendOutput);
+
+  try {
+    await waitForServer(server, () => output);
+    return server;
+  } catch (error) {
+    await stopVite(server);
+    throw error;
+  }
+}
+
+async function stopVite(server) {
+  if (!server || server.exitCode !== null) return;
+  if (process.platform === "win32") {
+    await new Promise((resolveStop) => {
+      const taskkill = spawn("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" });
+      taskkill.once("exit", resolveStop);
+      taskkill.once("error", resolveStop);
+    });
+    return;
+  }
+  server.kill("SIGTERM");
+  await new Promise((resolveStop) => server.once("exit", resolveStop));
+}
+
+async function expectVisible(page, selector) {
+  await page.locator(selector).first().waitFor({ state: "visible", timeout: 10_000 });
+}
+
+async function expectNoText(page, pattern) {
+  const visibleText = await page.locator("body").innerText();
+  if (pattern.test(visibleText)) throw new Error(`Unexpected visible text matched ${pattern}`);
+}
+
+async function assertNoZeroSizedText(page) {
+  const zeroSized = await page.locator("body *").evaluateAll((elements) => elements
+    .filter((element) => {
+      const text = element.textContent?.trim();
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return Boolean(text)
+        && element.tagName !== "OPTION"
+        && style.display !== "none"
+        && style.visibility !== "hidden"
+        && Number(style.opacity) !== 0
+        && (rect.width === 0 || rect.height === 0);
+    })
+    .slice(0, 10)
+    .map((element) => ({
+      element: element.tagName.toLowerCase(),
+      className: element.className,
+      text: element.textContent?.trim().slice(0, 120),
+    })));
+  if (zeroSized.length > 0) throw new Error(`Visible text has a zero-sized box: ${JSON.stringify(zeroSized)}`);
+}
+
+async function assertBodyFitsViewport(page) {
+  const metrics = await page.evaluate(() => ({
+    scrollHeight: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+    viewportHeight: window.innerHeight,
+  }));
+  if (metrics.scrollHeight > metrics.viewportHeight + 2) {
+    throw new Error(`Body scroll height ${metrics.scrollHeight}px exceeds viewport ${metrics.viewportHeight}px`);
+  }
+}
+
+async function assertAppContentHasNoVisibleScrollbar(page) {
+  const visibleScrollbar = await page.locator(".app-content").evaluate((element) => {
+    const style = getComputedStyle(element);
+    const canScroll = ["auto", "scroll"].includes(style.overflowY) && element.scrollHeight > element.clientHeight;
+    return canScroll && element.offsetWidth - element.clientWidth > 0;
+  });
+  if (visibleScrollbar) throw new Error(".app-content has a visible vertical scrollbar");
+}
+
+function screenshotPath(route, theme, viewport) {
+  const routeName = route.replace(/^\/#\//, "").replace(/[^a-z0-9]+/gi, "-");
+  return resolve(artifactDirectory, `${routeName}-${theme}-${viewport.name}.png`);
+}
+
+async function verifyRoute(browser, route, theme, viewport) {
+  const context = await browser.newContext({ colorScheme: theme, viewport });
+  const page = await context.newPage();
+  const consoleErrors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => consoleErrors.push(error.stack ?? error.message));
+  await page.addInitScript((selectedTheme) => {
+    localStorage.setItem("softui:theme:anonymous", selectedTheme);
+    localStorage.setItem("softui:theme:visual-smoke", selectedTheme);
+    window.__SOFTUI_VISUAL_SMOKE__ = true;
+  }, theme);
+
+  try {
+    await page.goto(`${baseUrl}${route}`, { waitUntil: "networkidle" });
+    await expectVisible(page, ".app-shell, .login-shell");
+    await page.evaluate((selectedTheme) => {
+      localStorage.setItem("softui:theme:visual-smoke", selectedTheme);
+      document.documentElement.dataset.theme = selectedTheme;
+      document.documentElement.style.colorScheme = selectedTheme;
+    }, theme);
+    await expectVisible(page, ".app-sidebar");
+    await expectVisible(page, ".global-status-bar");
+    await expectNoText(page, /璋冩暣甯冨眬|缂栬緫甯冨眬/);
+    await expectNoText(page, /娑搢閺億閻鐠亅閹瑋娴紎缁緗閸榺瑜皘姒?/);
+    await expectNoText(page, mojibakePattern);
+
+    if (route === "/#/charts") {
+      await expectVisible(page, ".charts-sidebar");
+      await expectVisible(page, ".chart-canvas-region");
+    }
+    if (route === "/#/sessions") {
+      await expectVisible(page, ".recorder-workbench");
+      await expectVisible(page, ".sessions-page-content");
+    }
+    if (route === "/#/settings") {
+      await expectVisible(page, ".settings-navigation-tabs");
+      await expectVisible(page, ".settings-section");
+    }
+
+    await page.waitForTimeout(250);
+    await assertNoZeroSizedText(page);
+    await assertBodyFitsViewport(page);
+    await assertAppContentHasNoVisibleScrollbar(page);
+    await page.screenshot({ path: screenshotPath(route, theme, viewport), fullPage: false });
+    if (consoleErrors.length > 0) throw new Error(`Console errors:\n${consoleErrors.join("\n")}`);
+  } finally {
+    await context.close();
+  }
+}
+
+let viteServer;
+let browser;
+try {
+  await mkdir(artifactDirectory, { recursive: true });
+  viteServer = await startViteIfNeeded();
+  browser = await chromium.launch();
+  for (const route of routes) {
+    for (const theme of themes) {
+      for (const viewport of viewports) {
+        await verifyRoute(browser, route, theme, viewport);
+      }
+    }
+  }
+  console.log(`PASS visual smoke: ${routes.length * themes.length * viewports.length} screenshots saved to artifacts/visual-smoke`);
+} finally {
+  await browser?.close();
+  await stopVite(viteServer);
+}

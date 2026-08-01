@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { RuntimeSnapshot } from "../softuiTypes";
 import { makeFallbackSnapshot } from "../state/fallbackSnapshot";
+import { getVisualSmokeResponse, isVisualSmokeMode } from "../test/visualRoutes";
 
 export interface TauriClient {
   bootstrap(): Promise<RuntimeSnapshot>;
@@ -15,6 +16,7 @@ function hasTauriInvokeBridge() {
 }
 
 function invokeOrFallback<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  if (isVisualSmokeMode()) return Promise.resolve(getVisualSmokeResponse(command) as T);
   if (hasTauriInvokeBridge()) return invoke<T>(command, args);
   if (command === "bootstrap_state" || command === "tick_snapshot") {
     return Promise.resolve(makeFallbackSnapshot() as T);
