@@ -54,7 +54,7 @@ describe("semantic token contrast", () => {
 });
 
 describe("button contrast tokens", () => {
-  it("defines explicit button and disabled colors for both themes", () => {
+  it.each(["light", "dark"] as const)("defines explicit button and disabled colors in %s mode", (theme) => {
     for (const name of [
       "--button-default-bg",
       "--button-default-text",
@@ -67,7 +67,18 @@ describe("button contrast tokens", () => {
       "--button-disabled-text",
       "--button-disabled-border",
     ]) {
-      expect(tokens).toContain(name);
+      expect(tokenValue(theme, name)).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+
+  it.each(["light", "dark"] as const)("keeps button text readable in %s mode", (theme) => {
+    for (const [background, text] of [
+      ["--button-default-bg", "--button-default-text"],
+      ["--button-primary-bg", "--button-primary-text"],
+      ["--button-danger-bg", "--button-danger-text"],
+      ["--button-disabled-bg", "--button-disabled-text"],
+    ]) {
+      expect(contrast(tokenValue(theme, text), tokenValue(theme, background))).toBeGreaterThanOrEqual(4.5);
     }
   });
 
