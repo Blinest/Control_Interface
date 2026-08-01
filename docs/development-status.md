@@ -1,12 +1,12 @@
 # SoftUI 当前开发总结与后续规划
 
-更新时间：2026-07-31
+更新时间：2026-08-01
 
 当前工作分支：`ui-foundation-shell`
 
 当前工作区：`D:\APP\ControlUI\softui-desktop\.worktrees\ui-foundation-shell`
 
-当前 HEAD：`4dbcc3f chore: remove legacy page layout css`
+当前 HEAD：`50137e8 test: harden visual smoke guards`（验收记录提交前）
 
 ## 一、当前开发状态
 
@@ -121,13 +121,22 @@
 - Rust 测试：97 个通过。
 - 构建：通过。
 
-### 7. 已知未收口事项
+### 7. 外观布局最终验收（2026-08-01）
 
-- Phase 2 的最终整体验收评审子任务曾启动，但在用户中断前尚未返回最终文本。当前本地验证已经通过，但还没有拿到该子评审的最终报告。
-- `npm.cmd run build` 存在 Vite chunk 体积警告，当前不影响构建，但后续可以通过动态导入或 manualChunks 优化。
+已完成：
+
+- 中文文案可读性、浅色/深色主题对比、应用壳层滚动条、最小窗口可达性、直接拖拽/拉伸卡片与视觉截图验收五项指标均达到 100%。
+- `artifacts/visual-smoke/` 已生成总览、工作区、曲线、会话、日志、设置六个路由在浅色/深色及 1600x980/1280x800 下的 24 张截图。
+- release 产物已在 `src-tauri\target\release\` 下重新生成。
+- 详细命令结果和产物清单见 `docs\appearance-layout-acceptance-report.md`。
+
+### 8. 已知未收口事项
+
+- 本阶段没有阻塞验收的未收口事项。
+- Rust 编译仍报告 `LiveDataRing::latest_for_device` 未使用警告；不影响本次测试和 release 构建结果。
 - Phase 3 五个任务已全部完成并提交，对应计划文件仍保留在 `docs\superpowers\plans` 下。
 - Phase 4/5 完成，对应计划文件为 `docs\superpowers\plans\2026-07-31-stability-runtime-completion.md`。
-- 布局与外观修复完成，对应计划文件为 `docs\superpowers\plans\2026-07-31-layout-appearance-fix.md`。
+- 布局与外观验收完成，对应计划文件为 `docs\superpowers\plans\2026-08-01-appearance-layout-acceptance-fix.md`。
 
 ## 二、当前外观与布局改造方向
 
