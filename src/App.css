@@ -3158,10 +3158,6 @@ button {
   text-overflow: ellipsis;
 }
 
-.charts-sidebar {
-  overflow: hidden;
-}
-
 .charts-main {
   background: rgba(255, 255, 255, 0.01);
 }
@@ -4020,10 +4016,6 @@ select option,
 
 .migration-summary {
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-}
-
-.charts-sidebar {
-  overflow: hidden;
 }
 
 .charts-main {

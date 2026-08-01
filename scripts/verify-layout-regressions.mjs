@@ -21,6 +21,12 @@ assert.match(shell, /\.emergency-stop-button[\s\S]*flex:\s*0\s+0\s+auto/, "emerg
 assert.match(shell, /\.app-content\s*\{[\s\S]*grid-template-rows:\s*minmax\(0,\s*1fr\)/, "app content must keep a definite content row");
 assert.match(shell, /\.app-page-content[\s\S]*overflow:\s*hidden/, "app page must not scroll at shell level");
 assert.match(base, /scrollbar-width:\s*none/, "visible scrollbars must be hidden");
+assert.match(base, /scrollbar-width:\s*none/, "visible scrollbars must remain hidden");
+assert.match(layoutsCss, /\.layout-scroll-region\s*\{[\s\S]*overflow:\s*auto/, "layout scroll regions must be internally scrollable");
+assert.match(chartsCss, /\.chart-layout\s+\.charts-sidebar\s*\{[\s\S]*overflow-y:\s*auto/, "chart sidebar must scroll vertically");
+assert.match(sessionsCss, /\.sessions-table-region\s*\{[\s\S]*overflow:\s*auto/, "sessions table must scroll internally");
+assert.match(logsCss, /\.logs-table-region\s*\{[\s\S]*overflow:\s*auto/, "logs table must scroll internally");
+assert.doesNotMatch(css, /\.charts-sidebar\s*\{[^}]*overflow:\s*hidden/, "App.css must not clip chart sidebar");
 assert.doesNotMatch(shell, /\.page-tabs/, "top page tabs must be removed");
 assert.match(shell, /grid-template-columns: 224px/, "sidebar must stay fixed width");
 assert.doesNotMatch(shell, /@media \(max-width: 1439px\)/, "sidebar must not auto-collapse");
