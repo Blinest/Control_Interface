@@ -1,4 +1,5 @@
 import type * as React from "react";
+import { ResponsiveRail } from "../components/layout/ResponsiveRail";
 import "../styles/layouts.css";
 
 export interface WorkbenchLayoutProps {
@@ -10,7 +11,9 @@ export interface WorkbenchLayoutProps {
 export function WorkbenchLayout({ context, tabs, children }: WorkbenchLayoutProps) {
   return (
     <section className="workbench-layout">
-      <aside className="workbench-context layout-scroll-region">{context}</aside>
+      <ResponsiveRail className="workbench-context" label="Workbench context">
+        {context}
+      </ResponsiveRail>
       <header className="workbench-tabs">{tabs}</header>
       <main className="layout-scroll-region">{children}</main>
     </section>

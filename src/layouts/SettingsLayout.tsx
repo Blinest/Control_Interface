@@ -1,4 +1,5 @@
 import type * as React from "react";
+import { ResponsiveRail } from "../components/layout/ResponsiveRail";
 import "../styles/layouts.css";
 
 export interface SettingsLayoutProps {
@@ -10,7 +11,9 @@ export interface SettingsLayoutProps {
 export function SettingsLayout({ navigation, actions, children }: SettingsLayoutProps) {
   return (
     <section className="settings-layout">
-      <aside className="settings-navigation">{navigation}</aside>
+      <ResponsiveRail className="settings-navigation" label="Settings navigation">
+        {navigation}
+      </ResponsiveRail>
       <header className="settings-actions">{actions}</header>
       <main className="layout-scroll-region">{children}</main>
     </section>

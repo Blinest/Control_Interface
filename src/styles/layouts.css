@@ -20,6 +20,24 @@
   overflow: auto;
 }
 
+.responsive-rail {
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.responsive-rail-title {
+  font: var(--font-label);
+  color: var(--text-muted);
+}
+
+.responsive-rail-scroll {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+
 .workbench-layout {
   height: 100%;
   display: grid;
@@ -85,11 +103,18 @@
   .chart-layout,
   .settings-layout {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
   }
 
   .workbench-context,
   .chart-channels,
   .settings-navigation {
-    display: none;
+    grid-row: auto;
+    max-height: 220px;
+  }
+
+  .responsive-rail-scroll {
+    min-height: 0;
+    overflow: auto;
   }
 }

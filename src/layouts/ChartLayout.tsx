@@ -1,4 +1,5 @@
 import type * as React from "react";
+import { ResponsiveRail } from "../components/layout/ResponsiveRail";
 import "../styles/layouts.css";
 
 export interface ChartLayoutProps {
@@ -12,7 +13,9 @@ export interface ChartLayoutProps {
 export function ChartLayout({ channels, toolbar, children, channelsLabel, toolbarLabel }: ChartLayoutProps) {
   return (
     <section className="chart-layout">
-      <aside className="chart-channels" aria-label={channelsLabel}>{channels}</aside>
+      <ResponsiveRail className="chart-channels" label={channelsLabel ?? "Chart channels"}>
+        {channels}
+      </ResponsiveRail>
       <header className="chart-toolbar" aria-label={toolbarLabel}>{toolbar}</header>
       <main className="layout-scroll-region">{children}</main>
     </section>

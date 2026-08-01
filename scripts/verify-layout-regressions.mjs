@@ -14,6 +14,7 @@ const settingsCss = readFileSync(new URL("../src/features/settings/settings.css"
 const dashboardCss = readFileSync(new URL("../src/features/dashboard/dashboard.css", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../src/styles/shell.css", import.meta.url), "utf8");
 const base = readFileSync(new URL("../src/styles/base.css", import.meta.url), "utf8");
+const layoutsCss = readFileSync(new URL("../src/styles/layouts.css", import.meta.url), "utf8");
 
 assert.match(shell, /\.global-status-bar[\s\S]*min-width:\s*0/, "global status bar must constrain its flexible content");
 assert.match(shell, /\.emergency-stop-button[\s\S]*flex:\s*0\s+0\s+auto/, "emergency stop must remain visible beside status details");
@@ -47,6 +48,9 @@ for (const selector of ["settings-grid", "logs-page-layout", "sessions-page-layo
 }
 assert.doesNotMatch(css, /border-radius:\s*8px/, "shared radius must use the design token");
 assert.match(sessions, /RecorderWorkbench/, "SessionsPage must merge recorder and stats into one workbench");
+assert.doesNotMatch(layoutsCss, /display:\s*none[\s\S]*workbench-context|workbench-context[\s\S]*display:\s*none/);
+assert.doesNotMatch(layoutsCss, /chart-channels[\s\S]*display:\s*none/);
+assert.doesNotMatch(layoutsCss, /settings-navigation[\s\S]*display:\s*none/);
 assert.doesNotMatch(
   sessions,
   /\/\*\s*Left: Recording control panel\s*\*\/[\s\S]*\/\*\s*Right: Session history table\s*\*\//,
