@@ -31,7 +31,7 @@ describe("DirectCardLayout", () => {
     }));
   });
 
-  it("exposes labelled icon-only direct manipulation controls", () => {
+  it("keeps direct manipulation chrome visually hidden while preserving keyboard fallback controls", () => {
     render(
       <DirectCardLayout
         layout={defaultDashboardLayout}
@@ -40,8 +40,8 @@ describe("DirectCardLayout", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "\u79fb\u52a8\u8fde\u63a5\u72b6\u6001\u5361\u7247" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "\u62c9\u4f38\u8fde\u63a5\u72b6\u6001\u5361\u7247" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "\u79fb\u52a8\u8fde\u63a5\u72b6\u6001\u5361\u7247" })).toHaveClass("sr-only");
+    expect(screen.getByRole("button", { name: "\u62c9\u4f38\u8fde\u63a5\u72b6\u6001\u5361\u7247" })).toHaveClass("sr-only");
     expect(screen.queryByRole("button", { name: "\u4fdd\u5b58\u5e03\u5c40" })).not.toBeInTheDocument();
   });
 

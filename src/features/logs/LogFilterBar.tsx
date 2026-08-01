@@ -33,7 +33,7 @@ export function LogFilterBar({
     <div className="logs-toolbar">
       <div className="logs-level-filters" aria-label="日志级别筛选">
         {VISIBLE_LOG_LEVELS.map((level) => (
-          <label className="log-level-check" key={level}>
+          <label className={`log-level-check log-level-check-${level}`} key={level}>
             <input
               type="checkbox"
               checked={selectedLevels.includes(level)}

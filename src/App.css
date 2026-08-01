@@ -3106,26 +3106,6 @@ select option,
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 }
 
-.charts-main {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  min-height: 0;
-}
-
-.charts-toolbar {
-  flex-wrap: wrap;
-  min-height: 40px;
-}
-
-.charts-container {
-  min-height: 260px;
-}
-
-.charts-readout {
-  max-height: 74px;
-}
-
-
 .connect-modal {
   overflow: hidden;
 }

@@ -123,6 +123,21 @@ describe("DeviceWorkspacePage", () => {
     expect(robotSceneLifecycle.unmounts).toBe(0);
   });
 
+  it("renders motor summary cells as two-row status/value blocks", () => {
+    render(<DeviceWorkspacePage {...workspaceProps} />);
+
+    const summary = screen.getByRole("region", { name: "电机摘要" });
+    const motorCells = within(summary).getAllByTestId("monitor-motor-summary-cell");
+
+    expect(motorCells).toHaveLength(fixtureSnapshot.live.frames[0].motors.length);
+    for (const cell of motorCells) {
+      expect(within(cell).getByTestId("monitor-motor-summary-head")).toBeVisible();
+      expect(within(cell).getByTestId("monitor-motor-status-lamp")).toBeVisible();
+      expect(within(cell).getByTestId("monitor-motor-summary-value")).toBeVisible();
+      expect(within(cell).queryByTestId("monitor-motor-summary-state-row")).not.toBeInTheDocument();
+    }
+  });
+
   it("keeps selected-device telemetry empty when only another device has frames", async () => {
     const user = userEvent.setup();
     const snapshot = structuredClone(fixtureSnapshot);

@@ -27,15 +27,41 @@ const GROUP_ICONS: Record<ChannelGroup, LucideIcon> = {
 
 export interface ChannelSidebarProps {
   channels: ChannelMeta[];
+  subplotAssignments: string[];
   onToggleChannel: (name: string) => void;
   onToggleGroup: (type: ChannelGroup) => void;
+  onAssignSubplot: (index: number, channelName: string) => void;
 }
 
-export function ChannelSidebar({ channels, onToggleChannel, onToggleGroup }: ChannelSidebarProps) {
+export function ChannelSidebar({
+  channels,
+  subplotAssignments,
+  onToggleChannel,
+  onToggleGroup,
+  onAssignSubplot,
+}: ChannelSidebarProps) {
   return (
     <div className="charts-sidebar">
       <div className="charts-sidebar-header">
         <strong>通道列表</strong>
+      </div>
+      <div className="subplot-assignment-list" aria-label="子图曲线分配">
+        {subplotAssignments.map((channelName, index) => (
+          <label className="subplot-assignment" key={index}>
+            <span>子图 {index + 1}</span>
+            <select
+              aria-label={`子图 ${index + 1} 曲线`}
+              value={channelName}
+              onChange={(event) => onAssignSubplot(index, event.target.value)}
+            >
+              {channels.map((channel) => (
+                <option key={channel.name} value={channel.name}>
+                  {channel.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
       </div>
       {(["motor", "bend", "sensor"] as ChannelGroup[]).map((group) => {
         const groupChannels = channels.filter((channel) => channel.type === group);

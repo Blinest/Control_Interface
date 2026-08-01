@@ -1,1 +1,1 @@
-export const mojibakePattern = /娑|閺|閻|鐠|閹|娴|缁|閸|瑜|姒/;
+export const mojibakePattern = /娑|閺|閻|鐠|閹|娴|缁|閸|瑜|姒|璋冩暣|缂栬緫|鍥捐〃|鐢垫満|瀹炴椂|鎺у埗|璁惧|鏃ュ織|寮€|鍙戦|鏆傛棤|褰撳墠|涓夌淮|浼犳劅|閫氶亾|绛涢/;

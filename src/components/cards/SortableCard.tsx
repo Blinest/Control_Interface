@@ -31,15 +31,18 @@ export function SortableCard({ card, cardLabel, className, children, onResize }:
 
   return (
     <article
+      aria-label={cardLabel}
       className={`${className} card-layout-item${isDragging ? " is-dragging" : ""}`}
       ref={setNodeRef}
+      role="region"
       style={style}
+      {...listeners}
     >
       {children}
       <div className="card-layout-item-controls">
         <button
           aria-label={`\u79fb\u52a8${cardLabel}\u5361\u7247`}
-          className="card-icon-button card-drag-handle"
+          className="card-icon-button card-drag-handle sr-only"
           ref={setActivatorNodeRef}
           type="button"
           {...attributes}

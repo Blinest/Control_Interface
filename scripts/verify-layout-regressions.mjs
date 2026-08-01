@@ -55,6 +55,9 @@ assert.match(sessionsCss, /\.sessions-table-region[\s\S]*overflow:\s*auto/, "ses
 assert.match(logsCss, /\.logs-toolbar/, "logs page needs a table-style toolbar");
 assert.match(logsCss, /\.logs-table-region[\s\S]*overflow:\s*auto/, "logs table must scroll internally");
 assert.match(chartsCss, /\.channel-item\s*\{[\s\S]*min-width:\s*0/, "chart channel rows must not clip checkboxes");
+assert.doesNotMatch(css, /\.charts-main\s*\{[\s\S]*grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\)/, "App.css must not keep the stale chart row recipe that underfills the chart page");
+assert.match(chartsCss, /\.charts-subplot-grid\s*\{[\s\S]*grid-template-rows:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/, "charts page must reserve a filled six-subplot grid");
+assert.match(chartsCss, /\.chart-subplot-canvas\s*\{[\s\S]*height:\s*100%/, "each chart subplot canvas must fill its panel");
 assert.match(logs, /TableLayout/, "LogsPage must use table-style page layout");
 for (const label of ["warning", "error", "info", "bug"]) {
   assert.match(logFilters, new RegExp(`"${label}"`), `logs page needs ${label} filter`);

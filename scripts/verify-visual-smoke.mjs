@@ -201,6 +201,31 @@ async function assertAppContentHasNoVisibleScrollbar(page) {
   if (visibleScrollbar) throw new Error(".app-content has a visible vertical scrollbar");
 }
 
+async function assertChartsFillPrimaryRegion(page) {
+  const metrics = await page.evaluate(() => {
+    const primary = document.querySelector(".chart-layout > .layout-scroll-region");
+    const grid = document.querySelector(".charts-subplot-grid");
+    const subplots = Array.from(document.querySelectorAll(".chart-subplot"));
+    if (!primary || !grid) return null;
+    const primaryRect = primary.getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+    const subplotRects = subplots.map((subplot) => subplot.getBoundingClientRect());
+    return {
+      primaryHeight: primaryRect.height,
+      gridHeight: gridRect.height,
+      subplotCount: subplots.length,
+      minSubplotHeight: Math.min(...subplotRects.map((rect) => rect.height)),
+      lowerBlank: Math.max(0, primaryRect.bottom - gridRect.bottom),
+    };
+  });
+  if (!metrics) throw new Error("Charts route did not render the subplot grid");
+  if (metrics.subplotCount < 6) throw new Error(`Charts route rendered ${metrics.subplotCount} subplots, expected at least 6`);
+  if (metrics.minSubplotHeight < 120) throw new Error(`Charts subplots are clipped to ${metrics.minSubplotHeight}px`);
+  if (metrics.lowerBlank > Math.max(24, metrics.primaryHeight * 0.08)) {
+    throw new Error(`Charts subplot grid leaves ${metrics.lowerBlank}px blank below the primary region`);
+  }
+}
+
 function screenshotPath(route, theme, viewport) {
   const routeName = route.replace(/^\/#\//, "").replace(/[^a-z0-9]+/gi, "-");
   return resolve(artifactDirectory, `${routeName}-${theme}-${viewport.name}.png`);
@@ -230,15 +255,14 @@ async function verifyRoute(browser, route, theme, viewport) {
     }, theme);
     await expectVisible(page, ".app-sidebar");
     await expectVisible(page, ".global-status-bar");
-    await expectNoText(page, /璋冩暣甯冨眬|缂栬緫甯冨眬/);
-    await expectNoText(page, /娑搢閺億閻鐠亅閹瑋娴紎缁緗閸榺瑜皘姒?/);
     await expectNoText(page, mojibakePattern);
     await expectNoText(page, layoutEditTextPattern);
     await expectNoLayoutEditCancelButton(page);
 
     if (route === "/#/charts") {
       await expectVisible(page, ".charts-sidebar");
-      await expectVisible(page, ".chart-canvas-region");
+      await expectVisible(page, ".charts-subplot-grid");
+      await assertChartsFillPrimaryRegion(page);
     }
     if (route === "/#/sessions") {
       await expectVisible(page, ".recorder-workbench");

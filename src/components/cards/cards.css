@@ -13,15 +13,23 @@
 
 .card-layout-item {
   position: relative;
+  cursor: grab;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .card-layout-item.is-dragging {
   z-index: 1;
   opacity: 0.7;
-}
-
-.card-layout-item .feature-card-header {
-  padding-right: 72px;
 }
 
 .card-layout-item-controls {
@@ -33,12 +41,6 @@
   gap: 4px;
   opacity: 0;
   transition: opacity 120ms ease;
-}
-
-.card-layout-item:hover .card-layout-item-controls,
-.card-layout-item:focus-within .card-layout-item-controls,
-.card-layout-item.is-dragging .card-layout-item-controls {
-  opacity: 1;
 }
 
 .card-icon-button,
@@ -71,4 +73,32 @@
 .card-resize-handle {
   cursor: nwse-resize;
   touch-action: none;
+}
+
+.card-resize-zone {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.card-layout-item::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  border-right: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  content: "";
+  pointer-events: none;
+}
+
+.card-layout-item:hover::after,
+.card-layout-item:focus-within::after {
+  border-color: var(--border-default);
 }

@@ -1,4 +1,4 @@
-.chart-canvas-region {
+.chart-subplot-canvas {
   min-width: 0;
   min-height: 0;
   height: 100%;
@@ -10,6 +10,77 @@
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+.charts-subplot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.chart-subplot {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-panel);
+}
+
+.chart-subplot-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.chart-subplot-header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subplot-assignment-list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.subplot-assignment {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.subplot-assignment select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-size: 12px;
 }
 
 .chart-layout .charts-sidebar,
@@ -41,4 +112,11 @@
 .chart-layout .charts-sidebar {
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+@media (max-width: 1119px) {
+  .charts-subplot-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(6, minmax(160px, 1fr));
+  }
 }

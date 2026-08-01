@@ -141,10 +141,17 @@ export const monitorCardRegistry: Record<MonitorCardId, MonitorCardDefinition> =
       return frame && frame.motors.length > 0 ? (
         <div className="monitor-summary-grid">
           {frame.motors.map((motor) => (
-            <div key={motor.id}>
-              <span>M{motor.id}</span>
-              <strong>{motor.positionMm.toFixed(1)} mm</strong>
-              <small>{motor.running ? "运行" : "停止"}</small>
+            <div className="monitor-motor-summary-cell" data-testid="monitor-motor-summary-cell" key={motor.id}>
+              <div className="monitor-motor-summary-head" data-testid="monitor-motor-summary-head">
+                <span>M{motor.id}</span>
+                <span
+                  aria-label={motor.running ? "运行" : "停止"}
+                  className={`monitor-motor-status-lamp ${motor.running ? "is-running" : "is-stopped"}`}
+                  data-testid="monitor-motor-status-lamp"
+                  role="status"
+                />
+              </div>
+              <strong data-testid="monitor-motor-summary-value">{motor.positionMm.toFixed(1)} mm</strong>
             </div>
           ))}
         </div>

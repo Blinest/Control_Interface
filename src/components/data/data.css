@@ -90,18 +90,26 @@
 }
 
 .status-badge-warning {
+  border-color: color-mix(in srgb, var(--status-warning) 50%, var(--border-default));
+  background: color-mix(in srgb, var(--status-warning) 10%, var(--surface-panel));
   color: var(--status-warning);
 }
 
 .status-badge-error {
+  border-color: color-mix(in srgb, var(--status-error) 54%, var(--border-default));
+  background: color-mix(in srgb, var(--status-error) 10%, var(--surface-panel));
   color: var(--status-error);
 }
 
 .status-badge-info {
+  border-color: color-mix(in srgb, var(--status-info) 54%, var(--border-default));
+  background: color-mix(in srgb, var(--status-info) 10%, var(--surface-panel));
   color: var(--status-info);
 }
 
 .status-badge-bug {
+  border-color: color-mix(in srgb, var(--status-debug) 56%, var(--border-default));
+  background: color-mix(in srgb, var(--status-debug) 12%, var(--surface-panel));
   color: var(--status-debug);
 }
 

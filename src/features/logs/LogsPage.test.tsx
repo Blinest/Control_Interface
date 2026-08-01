@@ -25,6 +25,16 @@ describe("LogsPage", () => {
     }
   });
 
+  it("uses distinct visual classes for each log filter and badge level", () => {
+    render(<LogsPage logs={fixtureLogs} onExportDiagnostics={vi.fn()} />);
+
+    for (const level of ["warning", "error", "info", "bug"]) {
+      expect(screen.getByRole("checkbox", { name: level }).closest(".log-level-check")).toHaveClass(`log-level-check-${level}`);
+      const badgeText = screen.getAllByText(level).find((node) => node.closest(".status-badge"));
+      expect(badgeText?.closest(".status-badge")).toHaveClass(`status-badge-${level}`);
+    }
+  });
+
   it("opens the full message in a detail drawer", async () => {
     const user = userEvent.setup();
     render(<LogsPage logs={fixtureLogs} onExportDiagnostics={vi.fn()} />);

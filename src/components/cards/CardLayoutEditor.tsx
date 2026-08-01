@@ -50,7 +50,7 @@ export interface DirectCardLayoutProps {
 
 export function DirectCardLayout({ layout, onLayoutChange, childrenForCard }: DirectCardLayoutProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { delay: 240, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const visibleCards = layout.cards.filter((card) => card.visible);

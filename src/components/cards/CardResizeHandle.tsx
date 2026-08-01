@@ -15,7 +15,7 @@ export function CardResizeHandle({ label, size, onResize }: CardResizeHandleProp
   const currentSizeRef = useRef(size);
   currentSizeRef.current = size;
 
-  const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+  const onPointerDown = (event: PointerEvent<HTMLElement>) => {
     startRef.current = { x: event.clientX, y: event.clientY };
     currentSizeRef.current = size;
     if (event.currentTarget.setPointerCapture) {
@@ -23,7 +23,7 @@ export function CardResizeHandle({ label, size, onResize }: CardResizeHandleProp
     }
   };
 
-  const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+  const onPointerMove = (event: PointerEvent<HTMLElement>) => {
     if (!startRef.current) return;
     const dx = event.clientX - startRef.current.x;
     const dy = event.clientY - startRef.current.y;
@@ -41,17 +41,28 @@ export function CardResizeHandle({ label, size, onResize }: CardResizeHandleProp
     startRef.current = null;
   };
 
+  const pointerHandlers = {
+    onPointerDown,
+    onPointerMove,
+    onPointerCancel: onPointerUp,
+    onPointerUp,
+  };
+
   return (
-    <button
-      aria-label={label}
-      className="card-resize-handle"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerCancel={onPointerUp}
-      onPointerUp={onPointerUp}
-      type="button"
-    >
-      <Maximize2 aria-hidden="true" size={14} />
-    </button>
+    <>
+      <button
+        aria-label={label}
+        className="card-resize-handle sr-only"
+        type="button"
+        {...pointerHandlers}
+      >
+        <Maximize2 aria-hidden="true" size={14} />
+      </button>
+      <div
+        aria-hidden="true"
+        className="card-resize-zone"
+        {...pointerHandlers}
+      />
+    </>
   );
 }

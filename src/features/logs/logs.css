@@ -34,6 +34,46 @@
   accent-color: var(--action-primary);
 }
 
+.log-level-check-warning {
+  border-color: color-mix(in srgb, var(--status-warning) 54%, var(--border-default));
+  color: var(--status-warning);
+  background: color-mix(in srgb, var(--status-warning) 10%, var(--surface-panel));
+}
+
+.log-level-check-error {
+  border-color: color-mix(in srgb, var(--status-error) 56%, var(--border-default));
+  color: var(--status-error);
+  background: color-mix(in srgb, var(--status-error) 10%, var(--surface-panel));
+}
+
+.log-level-check-info {
+  border-color: color-mix(in srgb, var(--status-info) 56%, var(--border-default));
+  color: var(--status-info);
+  background: color-mix(in srgb, var(--status-info) 10%, var(--surface-panel));
+}
+
+.log-level-check-bug {
+  border-color: color-mix(in srgb, var(--status-debug) 58%, var(--border-default));
+  color: var(--status-debug);
+  background: color-mix(in srgb, var(--status-debug) 12%, var(--surface-panel));
+}
+
+.log-level-check-warning input {
+  accent-color: var(--status-warning);
+}
+
+.log-level-check-error input {
+  accent-color: var(--status-error);
+}
+
+.log-level-check-info input {
+  accent-color: var(--status-info);
+}
+
+.log-level-check-bug input {
+  accent-color: var(--status-debug);
+}
+
 .logs-search {
   display: flex;
   align-items: center;

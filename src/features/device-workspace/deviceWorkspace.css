@@ -323,7 +323,7 @@
 }
 
 .monitor-pane .card-grid {
-  grid-auto-rows: 176px;
+  grid-auto-rows: 196px;
 }
 
 .model-card-body {
@@ -371,6 +371,34 @@
 .monitor-summary-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   border: 1px solid var(--border-subtle);
+  height: 100%;
+  min-height: 0;
+}
+
+.monitor-motor-summary-cell {
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: center;
+}
+
+.monitor-motor-summary-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.monitor-motor-status-lamp {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--status-error);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-error) 16%, transparent);
+}
+
+.monitor-motor-status-lamp.is-running {
+  background: var(--status-ok);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-ok) 18%, transparent);
 }
 
 .workspace-empty-state {
