@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import datetime   # <-- 添加这一行
+from datetime import datetime
 
 # ==========================================
 # 日志管理器
@@ -8,7 +8,9 @@ from datetime import datetime   # <-- 添加这一行
 class LogManager:
     """日志管理器 - 按照增删改查逻辑组织"""
     def __init__(self):
-        self._log_directory = os.path.expanduser("~/.lqts/logs")
+        # 日志存储在项目根目录的 Logs/ 下
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self._log_directory = os.path.join(project_root, "Logs")
         self._current_log_path = None
         self._level_icons = {
             "INFO": "ℹ️",

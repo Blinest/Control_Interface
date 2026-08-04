@@ -17,10 +17,11 @@ class AnimatedButton(QPushButton):
         self.setStyleSheet(f"""
             QPushButton {{
                 background-color: {color};
-                border-radius: 6px;
-                padding: 8px 16px;
-                margin: 5px 20px 5px 20px;
+                border-radius: 8px;
+                padding: 14px 28px;
+                margin: 6px 20px 6px 20px;
                 font-weight: bold;
+                font-size: 11pt;
                 color: white;
                 border: none;
             }}

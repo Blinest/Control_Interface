@@ -13,6 +13,12 @@ from datetime import datetime
 import os
 
 
+class TwoDecimalAxisItem(pg.AxisItem):
+    """坐标轴刻度保留两位小数"""
+    def tickStrings(self, values, scale, spacing):
+        return [f"{value * scale:.2f}" for value in values]
+
+
 class GraphWindowUI(QDialog):
     def __init__(self, title, is_motor=True, num_devices=1, parent=None, enable_auto_save=True, is_history_mode=False):
         super().__init__(parent)
@@ -84,7 +90,13 @@ class GraphWindowUI(QDialog):
 
         # --- 绘图区域 ---
         pg.setConfigOptions(antialias=True)
-        self.plot_widget = pg.PlotWidget(background='w')
+        self.plot_widget = pg.PlotWidget(
+            background='w',
+            axisItems={
+                'bottom': TwoDecimalAxisItem(orientation='bottom'),
+                'left': TwoDecimalAxisItem(orientation='left')
+            }
+        )
         self.plot_widget.addLegend()
         self.plot_widget.setLabel('bottom', '时间', units='秒')
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
@@ -339,7 +351,7 @@ class HistoryFileDialog(QDialog):
 # 追加在 ui/graph_window.py 末尾
 
 class BendGraphWindow(QDialog):
-    """喷管弯曲角度历史曲线窗口（目标角度、当前角度）"""
+    """喷管弯曲角度历史曲线窗口（向上/向下当前与目标角度）"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("喷管弯曲角度历史曲线")
@@ -362,7 +374,13 @@ class BendGraphWindow(QDialog):
 
         # 绘图区域
         pg.setConfigOptions(antialias=True)
-        self.plot_widget = pg.PlotWidget(background='w')
+        self.plot_widget = pg.PlotWidget(
+            background='w',
+            axisItems={
+                'bottom': TwoDecimalAxisItem(orientation='bottom'),
+                'left': TwoDecimalAxisItem(orientation='left')
+            }
+        )
         self.plot_widget.addLegend()
         self.plot_widget.setLabel('bottom', '时间', units='秒')
         self.plot_widget.setLabel('left', '角度', units='度')
@@ -370,20 +388,32 @@ class BendGraphWindow(QDialog):
         self.layout.addWidget(self.plot_widget)
 
         # 坐标显示
-        self.coord_label = QLabel("点击曲线查看该点坐标")
+        self.coord_label = QLabel("曲线显示最近60秒数据，坐标轴保留两位小数")
         self.coord_label.setStyleSheet("background-color: #F5F5F5; border: 1px solid #CCC; padding: 5px;")
         self.layout.addWidget(self.coord_label)
 
         # 曲线对象
-        self.curve_target = self.plot_widget.plot(name="目标弯曲角度", pen=pg.mkPen(color='#D13438', width=2))
-        self.curve_current = self.plot_widget.plot(name="当前弯曲角度", pen=pg.mkPen(color='#107C10', width=2))
+        self.curve_up_current = self.plot_widget.plot(name="向上当前偏转角", pen=pg.mkPen(color='#D13438', width=2))
+        self.curve_down_current = self.plot_widget.plot(name="向下当前偏转角", pen=pg.mkPen(color='#107C10', width=2))
+        self.curve_up_target = self.plot_widget.plot(name="向上目标偏转角", pen=pg.mkPen(color='#0078D7', width=2, style=Qt.DashLine))
+        self.curve_down_target = self.plot_widget.plot(name="向下目标偏转角", pen=pg.mkPen(color='#FF8C00', width=2, style=Qt.DashLine))
 
         # 数据存储
         self.time_data = []
-        self.target_data = []
-        self.current_data = []
+        self.up_current_data = []
+        self.down_current_data = []
+        self.up_target_data = []
+        self.down_target_data = []
 
         self._controller = None
+
+    @property
+    def target_data(self):
+        return self.up_target_data
+
+    @property
+    def current_data(self):
+        return self.up_current_data
 
     def set_controller(self, controller):
         self._controller = controller
@@ -391,10 +421,24 @@ class BendGraphWindow(QDialog):
         self.btn_reset.clicked.connect(controller.reset_view)
         self.btn_save.clicked.connect(controller.save_data)
 
-    def update_data(self, times, targets, currents):
+    def update_data(self, times, up_currents, down_currents=None, up_targets=None, down_targets=None):
         """更新曲线数据"""
+        if down_currents is None or up_targets is None or down_targets is None:
+            # 兼容旧调用: update_data(times, targets, currents)
+            old_targets = up_currents
+            old_currents = down_currents if down_currents is not None else []
+            up_currents = old_currents
+            up_targets = old_targets
+            down_currents = [0.0] * len(times)
+            down_targets = [0.0] * len(times)
+
         self.time_data = times
-        self.target_data = targets
-        self.current_data = currents
-        self.curve_target.setData(times, targets)
-        self.curve_current.setData(times, currents)
+        self.up_current_data = up_currents
+        self.down_current_data = down_currents
+        self.up_target_data = up_targets
+        self.down_target_data = down_targets
+
+        self.curve_up_current.setData(times, up_currents)
+        self.curve_down_current.setData(times, down_currents)
+        self.curve_up_target.setData(times, up_targets)
+        self.curve_down_target.setData(times, down_targets)

@@ -35,5 +35,5 @@ class Local3DViewer(QMainWindow):
         self.current_file = file_path
         url = QUrl.fromLocalFile(file_path)
         self.web_view.load(url)
-        self.setWindowTitle(f"LQTS喷管模型")
+        self.setWindowTitle(f"S弯喷管模型")
 

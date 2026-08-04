@@ -422,16 +422,16 @@ class GraphController(QObject):
             v3 = y3_data[idx] if y3_data is not None and idx < len(y3_data) else 0.0
 
             if self.ui.is_motor:
-                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.3f}")
-                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.3f}")
-                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.3f}")
+                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.2f}")
+                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.2f}")
+                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.2f}")
             else:
                 # 传感器模式同理，可自定义标签
-                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.3f}")
-                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.3f}")
-                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.3f}")
+                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.2f}")
+                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.2f}")
+                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.2f}")
 
-        lines = [f"X = {actual_x:.3f}"]
+        lines = [f"X = {actual_x:.2f}"]
         if disp_items:
             if self.ui.is_motor:
                 lines.append("位移: " + ", ".join(disp_items))
@@ -487,7 +487,19 @@ class BendGraphController:
         fpath = os.path.join(base_dir, f"bend_angle_{now}.csv")
         with open(fpath, 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(["时间(秒)", "目标角度(deg)", "当前角度(deg)"])
-            for t, target, current in zip(self.window.time_data, self.window.target_data, self.window.current_data):
-                writer.writerow([f"{t:.3f}", f"{target:.3f}", f"{current:.3f}"])
+            writer.writerow([
+                "时间(秒)",
+                "向上当前偏转角(deg)",
+                "向下当前偏转角(deg)",
+                "向上目标偏转角(deg)",
+                "向下目标偏转角(deg)"
+            ])
+            for row in zip(
+                self.window.time_data,
+                self.window.up_current_data,
+                self.window.down_current_data,
+                self.window.up_target_data,
+                self.window.down_target_data
+            ):
+                writer.writerow([f"{value:.2f}" for value in row])
         QMessageBox.information(self.window, "保存成功", f"数据已保存至\n{fpath}")

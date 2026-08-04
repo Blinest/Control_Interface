@@ -1,7 +1,7 @@
 # Core/filters.py
 """
 滤波算法工具类
-提供中值滤波、限幅滤波以及针对电机/IMU数据的组合滤波功能
+提供中值滤波、限幅滤波以及针对电机数据的组合滤波功能
 """
 
 class FilterProcessor:
@@ -87,43 +87,3 @@ class FilterProcessor:
             filtered_pos, filtered_vel, filtered_acc = limited_pos, limited_vel, limited_acc
 
         return filtered_pos, filtered_vel, filtered_acc
-
-    @staticmethod
-    def apply_to_sensor(sensor_index, raw_pitch, raw_roll, raw_yaw,
-                        sensor_data, sensor_filter_buffers,
-                        max_change_rate_angle, filter_window_size):
-        """
-        对IMU的三个角度进行限幅+中值滤波
-
-        Args:
-            sensor_index: int，传感器索引
-            raw_pitch, raw_roll, raw_yaw: float，原始俯仰、横滚、偏航角
-            sensor_data: list，存储各传感器当前滤波后数据 [[pitch,roll,yaw], ...]
-            sensor_filter_buffers: list，每个传感器的三个量各自的历史值队列
-            max_change_rate_angle: float，角度最大变化率 (deg/100ms)
-            filter_window_size: int，中值滤波窗口大小
-
-        Returns:
-            tuple: (filtered_pitch, filtered_roll, filtered_yaw)
-        """
-        # 获取上次滤波后的值
-        if sensor_index < len(sensor_data):
-            last_pitch, last_roll, last_yaw = sensor_data[sensor_index]
-        else:
-            last_pitch, last_roll, last_yaw = raw_pitch, raw_roll, raw_yaw
-
-        # 限幅
-        limited_pitch = FilterProcessor.rate_limit_filter(last_pitch, raw_pitch, max_change_rate_angle)
-        limited_roll = FilterProcessor.rate_limit_filter(last_roll, raw_roll, max_change_rate_angle)
-        limited_yaw = FilterProcessor.rate_limit_filter(last_yaw, raw_yaw, max_change_rate_angle)
-
-        # 中值滤波
-        if sensor_index < len(sensor_filter_buffers):
-            queues = sensor_filter_buffers[sensor_index]  # queues[0]=pitch, [1]=roll, [2]=yaw
-            filtered_pitch = FilterProcessor.median_filter(queues[0], limited_pitch, filter_window_size)
-            filtered_roll = FilterProcessor.median_filter(queues[1], limited_roll, filter_window_size)
-            filtered_yaw = FilterProcessor.median_filter(queues[2], limited_yaw, filter_window_size)
-        else:
-            filtered_pitch, filtered_roll, filtered_yaw = limited_pitch, limited_roll, limited_yaw
-
-        return filtered_pitch, filtered_roll, filtered_yaw

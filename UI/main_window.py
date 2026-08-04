@@ -11,13 +11,10 @@ from PyQt5.QtCore import Qt, QTimer
 
 # 自定义类
 from .device_tab import DeviceTab
-from .graph_window import GraphWindowUI
 from .log_manager_win import LogManagerWindow
 from .widgets import AnimatedButton
-from .Local3DViewer import Local3DViewer
 from .log_window import LoginWindow
 from Core.logger import default_log_manager as log_manager
-from Core.GraphController import GraphController
 
 # 工具类
 import os
@@ -32,7 +29,7 @@ class MainWindow(QMainWindow):
     def __init__(self, auth_service=None):
         super().__init__()
         self.auth_service = auth_service  # 保存认证服务引用
-        self.setWindowTitle("LQTS喷管控制界面")
+        self.setWindowTitle("S弯喷管控制界面")
         # 设置窗口标志，确保最大化窗口可用
         self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
 
@@ -77,10 +74,6 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.manual_port_edit)
         toolbar.addWidget(self.btn_manual_add)
         toolbar.addSeparator()
-        toolbar.addAction("📈 电机反馈数据曲线", lambda: self.open_graph('motor'))
-        toolbar.addAction("📉 IMU反馈数据曲线", lambda: self.open_graph('sensor'))
-        toolbar.addSeparator()
-
         # 喷管弯曲历史曲线
         toolbar.addAction("📊 喷管弯曲历史曲线", self.open_bend_graph)
         toolbar.addSeparator()
@@ -90,14 +83,13 @@ class MainWindow(QMainWindow):
         self.log_manager_action.triggered.connect(self.open_log_manager)
 
         # 添加 3D 视图按钮 - 只有管理员可见
-        self.btn_3D =  toolbar.addAction("🌐 3D模型")
-        self.btn_3D.triggered.connect(self.open_3d_viewer)
+        # self.btn_3D =  toolbar.addAction("🌐 3D模型")
+        # self.btn_3D.triggered.connect(self.open_3d_viewer)
 
 
-        # 根据用户角色控制日志管理、3D视图按钮的可见性
+        # 根据用户角色控制日志管理按钮的可见性
         if self.auth_service and not self.auth_service.is_admin():
             self.log_manager_action.setVisible(False)
-            self.btn_3D.setVisible(False)
 
         # 添加用户信息和登出按钮到工具栏
         self._setup_toolbar_with_user(toolbar)
@@ -263,20 +255,20 @@ class MainWindow(QMainWindow):
         print(f"DEBUG: _show_welcome 被调用, username={username}")  # 调试信息
 
         # 1. 更新窗口标题
-        self.setWindowTitle(f"LQTS喷管控制界面 - 当前用户: {username}")
+        self.setWindowTitle(f"S弯喷管控制界面 - 当前用户: {username}")
 
         # 2. 状态栏显示
         self.statusBar().showMessage(f"👤 当前用户: {username} | ✅ 就绪", 0)
 
         # 3. 日志窗口显示
         self.log("=" * 50, level="INFO")
-        self.log(f"🎉 欢迎使用 LQTS 喷管控制平台", level="INFO")
+        self.log(f"🎉 欢迎使用 S弯喷管控制平台", level="INFO")
         self.log(f"👤 当前登录用户: {username}({self.role_text})", level="INFO")
         self.log(f"🕐 登录时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", level="INFO")
         self.log("=" * 50, level="INFO")
 
         # 4. 创建浮动提示
-        self._show_toast(f"{username}, 欢迎使用 LQTS 控制平台！")
+        self._show_toast(f"{username}, 欢迎使用 S弯喷管控制平台！")
 
     def _show_toast(self, message, duration=2000):
         """显示短暂的提示信息"""
@@ -468,32 +460,6 @@ class MainWindow(QMainWindow):
         del self.devices[port_name]
         self.tabs.removeTab(index)
 
-    def open_graph(self, g_type):
-        dev = self.tabs.currentWidget()
-        if not dev:
-            return
-
-        dev.active_type = g_type
-
-        if g_type == 'motor':
-            title = f"电机反馈数据曲线图 ({dev.port_name})"
-            is_motor = True
-            num_devices = dev.num_m
-        else:
-            title = f"IMU反馈数据曲线图 ({dev.port_name})"
-            is_motor = False
-            num_devices = dev.num_s
-
-
-        ui = GraphWindowUI(title, is_motor=is_motor, num_devices=num_devices)
-        controller = GraphController(ui, is_history_mode=False)
-        controller.main_window = self          # <--- 设置 main_window 引用
-        ui.set_controller(controller)
-
-        dev.active_graph_ui = ui
-        dev.active_graph_controller = controller
-
-        ui.show()
     def refresh_ports(self):
         self.combo_ports.clear()
         valid_ports = self._get_valid_ports()
@@ -529,15 +495,6 @@ class MainWindow(QMainWindow):
         log_window = LogManagerWindow(self)
         log_window.exec_()
 
-    def open_history_graph(self, file_path, is_motor):
-        title = "历史数据 - " + os.path.basename(file_path)
-        ui = GraphWindowUI(title, is_motor=is_motor, num_devices=1, enable_auto_save=False, is_history_mode=True)
-        controller = GraphController(ui, is_history_mode=True)
-        ui.set_controller(controller)
-        ui.show()
-        # 加载数据（需在窗口显示后执行，确保 UI 已完全初始化）
-        QTimer.singleShot(50, lambda: controller._load_csv_file(file_path))
-
     def open_bend_graph(self):
         """打开当前设备选项卡的喷管弯曲历史曲线窗口"""
         current_tab = self.tabs.currentWidget()
@@ -549,13 +506,3 @@ class MainWindow(QMainWindow):
             current_tab.open_bend_graph()
         else:
             QMessageBox.warning(self, "提示", "当前设备选项卡不支持弯曲历史曲线功能。")
-
-    def open_3d_viewer(self):
-
-        file_path = os.path.expanduser("~/.lqts/auth_data/LQTS.html")
-        if not os.path.exists(file_path):
-            QMessageBox.warning(self, "错误", f"3D模型文件不存在:\n{file_path}\n请检查文件是否放置正确。")
-            return
-        self.viewer = Local3DViewer()
-        self.viewer.load_file(file_path)
-        self.viewer.show()
