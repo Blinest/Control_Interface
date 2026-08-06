@@ -339,10 +339,10 @@ class HistoryFileDialog(QDialog):
 # 追加在 ui/graph_window.py 末尾
 
 class BendGraphWindow(QDialog):
-    """喷管弯曲角度历史曲线窗口（目标角度、当前角度）"""
+    """喷管数据曲线窗口（偏转角度、截面面积变化）"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("喷管弯曲角度历史曲线")
+        self.setWindowTitle("喷管数据曲线")
         screen = QApplication.primaryScreen().availableGeometry()
         self.resize(int(screen.width() * 0.6), int(screen.height() * 0.7))
         self.setMinimumSize(640, 480)
@@ -351,50 +351,95 @@ class BendGraphWindow(QDialog):
 
         # 控制按钮
         btn_layout = QHBoxLayout()
-        self.btn_focus = QPushButton("🎯 一键聚焦")
-        self.btn_reset = QPushButton("🔄 重置视图")
         self.btn_save = QPushButton("💾 保存数据")
-        btn_layout.addWidget(self.btn_focus)
-        btn_layout.addWidget(self.btn_reset)
-        btn_layout.addWidget(self.btn_save)
+        self.btn_save.setFixedHeight(36)
+        self.btn_save.setStyleSheet("""
+            QPushButton {
+                background-color: #0078D7;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                padding: 6px 12px;
+            }
+            QPushButton:hover { background-color: #005A9E; }
+        """)
+        self.btn_autofocus = QPushButton("🎯 自动聚焦")
+        self.btn_autofocus.setFixedHeight(36)
+        self.btn_autofocus.setStyleSheet("""
+            QPushButton {
+                background-color: #53565b;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: bold;
+                padding: 6px 12px;
+            }
+            QPushButton:hover { background-color: #3a3c3f; }
+        """)
+        self.btn_autofocus.clicked.connect(self.auto_focus)
+        btn_layout.addWidget(self.btn_autofocus)
         btn_layout.addStretch()
+        btn_layout.addWidget(self.btn_save)
         self.layout.addLayout(btn_layout)
 
-        # 绘图区域
-        pg.setConfigOptions(antialias=True)
-        self.plot_widget = pg.PlotWidget(background='w')
-        self.plot_widget.addLegend()
-        self.plot_widget.setLabel('bottom', '时间', units='秒')
-        self.plot_widget.setLabel('left', '角度', units='度')
-        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        self.layout.addWidget(self.plot_widget)
+        # ---- 偏转角度曲线图 ----
+        self.plot_angle = pg.PlotWidget()
+        self.plot_angle.setBackground('w')
+        self.plot_angle.showGrid(x=True, y=True, alpha=0.4)
+        self.plot_angle.addLegend()
+        self.plot_angle.setLabel('bottom', '时间', units='s', color='#000')
+        self.plot_angle.setLabel('left', '偏转角度', units='deg', color='#000')
+        self.plot_angle.setTitle("偏转角度曲线", color='#333')
+        self.plot_angle.getAxis('bottom').setPen('#333')
+        self.plot_angle.getAxis('left').setPen('#333')
+        self.plot_angle.getAxis('bottom').setTextPen('#333')
+        self.plot_angle.getAxis('left').setTextPen('#333')
 
-        # 坐标显示
-        self.coord_label = QLabel("点击曲线查看该点坐标")
-        self.coord_label.setStyleSheet("background-color: #F5F5F5; border: 1px solid #CCC; padding: 5px;")
-        self.layout.addWidget(self.coord_label)
+        self.curve_target = self.plot_angle.plot(name="目标偏转角度", pen=pg.mkPen(color='#D13438', width=2))
+        self.curve_current = self.plot_angle.plot(name="当前偏转角度", pen=pg.mkPen(color='#FF8C00', width=2))
 
-        # 曲线对象
-        self.curve_target = self.plot_widget.plot(name="目标弯曲角度", pen=pg.mkPen(color='#D13438', width=2))
-        self.curve_current = self.plot_widget.plot(name="当前弯曲角度", pen=pg.mkPen(color='#107C10', width=2))
+        # ---- 截面面积变化曲线图 ----
+        self.plot_area = pg.PlotWidget()
+        self.plot_area.setBackground('w')
+        self.plot_area.showGrid(x=True, y=True, alpha=0.4)
+        self.plot_area.addLegend()
+        self.plot_area.setLabel('bottom', '时间', units='s', color='#000')
+        self.plot_area.setLabel('left', '截面面积变化', units='%', color='#000')
+        self.plot_area.setTitle("截面面积变化曲线", color='#333')
+        self.plot_area.getAxis('bottom').setPen('#333')
+        self.plot_area.getAxis('left').setPen('#333')
+        self.plot_area.getAxis('bottom').setTextPen('#333')
+        self.plot_area.getAxis('left').setTextPen('#333')
 
-        # 数据存储
-        self.time_data = []
-        self.target_data = []
-        self.current_data = []
+        self.curve_area_target = self.plot_area.plot(name="目标截面面积变化", pen=pg.mkPen(color='#107C10', width=2))
+        self.curve_area_current = self.plot_area.plot(name="当前截面面积变化", pen=pg.mkPen(color='#0078D7', width=2))
 
-        self._controller = None
+        self.layout.addWidget(self.plot_angle)
+        self.layout.addWidget(self.plot_area)
 
     def set_controller(self, controller):
-        self._controller = controller
-        self.btn_focus.clicked.connect(controller.auto_focus)
-        self.btn_reset.clicked.connect(controller.reset_view)
+        """绑定控制器"""
+        self.controller = controller
         self.btn_save.clicked.connect(controller.save_data)
 
-    def update_data(self, times, targets, currents):
-        """更新曲线数据"""
-        self.time_data = times
-        self.target_data = targets
-        self.current_data = currents
+    def auto_focus(self):
+        """自动聚焦：两个曲线图各自自动缩放"""
+        self.plot_angle.autoRange()
+        self.plot_area.autoRange()
+
+    def update_data(self, times, targets, currents, area_targets=None, area_currents=None):
+        if not times:
+            return
         self.curve_target.setData(times, targets)
         self.curve_current.setData(times, currents)
+        self.curve_area_target.setData(times, area_targets or [])
+        self.curve_area_current.setData(times, area_currents or [])
+
+        # 自动滚动 X 轴：固定显示最近 20 秒
+        last_t = times[-1]
+        x_min = max(0, last_t - 20)
+        x_max = last_t
+        self.plot_angle.setXRange(x_min, x_max, padding=0)
+        self.plot_area.setXRange(x_min, x_max, padding=0)
+

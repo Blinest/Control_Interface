@@ -9,7 +9,7 @@ class MotorData:
     def __init__(self, pos: float, vel: float, acc: float, status: int):
         self.pos = pos      # mm
         self.vel = vel      # mm/s
-        self.acc = acc      # mm/s²
+        self.acc = acc      # 当前状态帧不包含加速度，保留字段兼容前端
         self.status = status  # 0:停止, 1:运行
 
 class SensorData:
@@ -21,16 +21,16 @@ class SensorData:
 
 class DeviceStatus:
     __slots__ = ('num_motors', 'num_sensors', 'motors', 'sensors',
-                 'scale', 'bend_angle', 'sys_state')
+                 'bend_angle', 'actuator_displacement', 'sys_state')
     def __init__(self, num_motors: int, num_sensors: int,
                  motors: List[MotorData], sensors: List[SensorData],
-                 scale: float, bend_angle: float, sys_state: int):
+                 bend_angle: float, actuator_displacement: float, sys_state: int):
         self.num_motors = num_motors
         self.num_sensors = num_sensors
         self.motors = motors
         self.sensors = sensors
-        self.scale = scale
         self.bend_angle = bend_angle
+        self.actuator_displacement = actuator_displacement
         self.sys_state = sys_state
 
 # ===================== 滤波器 =====================
@@ -104,6 +104,63 @@ class DataFilter:
         self._prev_motor.clear()
         self._prev_sensor.clear()
 
+# ===================== 帧组装器 =====================
+class FrameAssembler:
+    """串口原始字节流 → 完整协议帧的组装器
+
+    职责：缓冲管理、帧头搜索、长度判断、校验和验证。
+    与 ProtocolParser 分工：本类负责「组帧」，ProtocolParser 负责「解帧」。
+    """
+
+    FRAME_HEAD = 0xBB
+    MAX_BUFFER = 1024   # 防止缓冲区无限增长
+
+    def __init__(self):
+        self.buffer = bytearray()
+
+    def feed(self, data: bytes):
+        """喂入从串口读到的原始字节"""
+        self.buffer.extend(data)
+        # 防止缓冲区溢出（异常数据流）
+        if len(self.buffer) > self.MAX_BUFFER:
+            self.buffer.clear()
+
+    def get_frames(self) -> List[bytes]:
+        """从缓冲区中提取所有完整的、校验通过的帧"""
+        frames = []
+        while len(self.buffer) >= 5:
+            # 1) 搜索帧头
+            if self.buffer[0] != self.FRAME_HEAD:
+                self.buffer.pop(0)
+                continue
+
+            # 2) 读取数据长度（第 3 字节，index=2）
+            d_len = self.buffer[2]
+            if d_len > 255:
+                self.buffer.pop(0)
+                continue
+
+            # 3) 计算完整帧长度：帧头(1) + 功能码(1) + 长度(1) + 数据(d_len) + 校验(1)
+            frame_len = 3 + d_len + 1
+            if len(self.buffer) < frame_len:
+                break   # 数据不足，等待更多字节
+
+            # 4) 取出完整帧
+            frame = bytes(self.buffer[:frame_len])
+            self.buffer = self.buffer[frame_len:]
+
+            # 5) 校验和验证
+            if (sum(frame[:-1]) & 0xFF) != frame[-1]:
+                continue   # 校验失败，丢弃该帧
+
+            frames.append(frame)
+        return frames
+
+    def clear(self):
+        """清空缓冲区"""
+        self.buffer.clear()
+
+
 # ===================== 协议解析器 =====================
 class ProtocolParser:
     @staticmethod
@@ -114,38 +171,39 @@ class ProtocolParser:
         if func != 0x02:   # 只处理状态反馈帧
             return None
         payload = frame[3:-1]
-        if len(payload) < 2:
+        if len(payload) < 1:
             return None
 
-        esp_m, esp_s = payload[0], payload[1]
-        offset = 2
+        motor_count = payload[0]
+        offset = 1
 
         motors = []
-        for _ in range(esp_m):
-            if offset + 7 > len(payload):
-                break
-            x, y, z = struct.unpack_from('>hhh', payload, offset)
-            offset += 6
+        # 状态帧格式：电机数量 + N * (位置 int16 + 速度 int16 + 状态 int8)
+        for _ in range(motor_count):
+            if offset + 5 > len(payload):
+                return None
+            pos, vel = struct.unpack_from('>hh', payload, offset)
+            offset += 4
             status = payload[offset]
             offset += 1
-            motors.append(MotorData(x/100.0, y/100.0, z/100.0, status))
+            motors.append(MotorData(pos/100.0, vel/100.0, 0.0, status))
 
         sensors = []
-        for _ in range(esp_s):
-            if offset + 6 > len(payload):
-                break
-            pitch, roll, yaw = struct.unpack_from('>hhh', payload, offset)
-            offset += 6
-            sensors.append(SensorData(pitch/100.0, roll/100.0, yaw/100.0))
+        num_sensors = 0
 
-        scale = bend = 0.0
+        current_s = current_phi = 0.0
         sys_state = 0
-        if offset + 5 <= len(payload):
-            scale = struct.unpack_from('>h', payload, offset)[0] / 100.0
-            offset += 2
-            bend = struct.unpack_from('>h', payload, offset)[0] / 100.0
-            offset += 2
-            sys_state = payload[offset]
+        # 帧尾：current_S int16 + current_phi int16 + state uint8
+        if offset + 5 > len(payload):
+            return None
+        current_s = struct.unpack_from('>h', payload, offset)[0] / 100.0
+        offset += 2
+        current_phi = struct.unpack_from('>h', payload, offset)[0] / 100.0
+        offset += 2
+        sys_state = payload[offset]
+
+        if offset + 1 != len(payload):
+            return None
 
         if apply_filter and filter_obj is not None:
             filtered_motors = []
@@ -161,11 +219,11 @@ class ProtocolParser:
             sensors = filtered_sensors
 
         return DeviceStatus(
-            num_motors=esp_m,
-            num_sensors=esp_s,
+            num_motors=motor_count,
+            num_sensors=num_sensors,
             motors=motors,
             sensors=sensors,
-            scale=scale,
-            bend_angle=bend,
+            bend_angle=current_phi,
+            actuator_displacement=current_s,
             sys_state=sys_state
         )

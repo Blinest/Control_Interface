@@ -20,6 +20,7 @@ from Core.logger import default_log_manager as log_manager
 from Core.GraphController import GraphController
 
 # 工具类
+import sys
 import os
 from datetime import datetime
 import time
@@ -32,7 +33,7 @@ class MainWindow(QMainWindow):
     def __init__(self, auth_service=None):
         super().__init__()
         self.auth_service = auth_service  # 保存认证服务引用
-        self.setWindowTitle("LQTS喷管控制界面")
+        self.setWindowTitle("LYZ喷管控制界面")
         # 设置窗口标志，确保最大化窗口可用
         self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
 
@@ -47,7 +48,8 @@ class MainWindow(QMainWindow):
         self.auto_connect_timer = QTimer()
         self.auto_connect_timer.timeout.connect(self.auto_check_target_port)
         self.auto_connect_timer.start(200)
-        self.target_port = "/dev/ttyCH341USB0"
+        # 根据平台设置默认目标端口（仅用于优先匹配，不影响自动检测）
+        self.target_port = "COM3" if sys.platform == 'win32' else "/dev/ttyCH341USB0"
 
 
         # 创建状态栏
@@ -69,7 +71,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addWidget(QLabel("手动输入: "))
         self.manual_port_edit = QLineEdit()
-        self.manual_port_edit.setPlaceholderText("/dev/ttyCH341USB0")
+        self.manual_port_edit.setPlaceholderText("COM3" if sys.platform == 'win32' else "/dev/ttyCH341USB0")
         self.manual_port_edit.setFixedWidth(150)
         self.btn_manual_add = AnimatedButton("➕ 手动添加", "grey", "#505050")
         self.btn_manual_add.setProperty("class", "page-btn")
@@ -77,12 +79,9 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.manual_port_edit)
         toolbar.addWidget(self.btn_manual_add)
         toolbar.addSeparator()
-        toolbar.addAction("📈 电机反馈数据曲线", lambda: self.open_graph('motor'))
-        toolbar.addAction("📉 IMU反馈数据曲线", lambda: self.open_graph('sensor'))
-        toolbar.addSeparator()
 
-        # 喷管弯曲历史曲线
-        toolbar.addAction("📊 喷管弯曲历史曲线", self.open_bend_graph)
+        # 喷管数据曲线
+        toolbar.addAction("📊 喷管数据曲线", self.open_bend_graph)
         toolbar.addSeparator()
 
         # 日志管理按钮 - 只有管理员可见
@@ -263,20 +262,20 @@ class MainWindow(QMainWindow):
         print(f"DEBUG: _show_welcome 被调用, username={username}")  # 调试信息
 
         # 1. 更新窗口标题
-        self.setWindowTitle(f"LQTS喷管控制界面 - 当前用户: {username}")
+        self.setWindowTitle(f"LYZ喷管控制界面 - 当前用户: {username}")
 
         # 2. 状态栏显示
         self.statusBar().showMessage(f"👤 当前用户: {username} | ✅ 就绪", 0)
 
         # 3. 日志窗口显示
         self.log("=" * 50, level="INFO")
-        self.log(f"🎉 欢迎使用 LQTS 喷管控制平台", level="INFO")
+        self.log(f"🎉 欢迎使用 LYZ 喷管控制平台", level="INFO")
         self.log(f"👤 当前登录用户: {username}({self.role_text})", level="INFO")
         self.log(f"🕐 登录时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", level="INFO")
         self.log("=" * 50, level="INFO")
 
         # 4. 创建浮动提示
-        self._show_toast(f"{username}, 欢迎使用 LQTS 控制平台！")
+        self._show_toast(f"{username}, 欢迎使用 LYZ 控制平台！")
 
     def _show_toast(self, message, duration=2000):
         """显示短暂的提示信息"""
@@ -371,23 +370,39 @@ class MainWindow(QMainWindow):
         else:
             self.text_raw.hide()
 
+    def _is_valid_serial_port(self, port_info):
+        """判断串口是否为有效的 USB/外接设备（跨平台）"""
+        device = port_info.device
+        if sys.platform == 'win32':
+            # Windows: 排除蓝牙串口等非目标设备，保留常规 COM 口
+            desc = (port_info.description or '').upper()
+            hwid = (port_info.hwid or '').upper()
+            # 过滤掉蓝牙串口
+            if 'BLUETOOTH' in desc or 'BLUETOOTH' in hwid:
+                return False
+            # COM 口均视为有效（Windows 下 USB 转串口直接映射为 COMx）
+            return device.startswith('COM')
+        else:
+            # Linux/macOS: 过滤系统内置串口，保留 USB/ACM/CH341 设备
+            if device.startswith('/dev/ttyS') or device.startswith('/dev/ttyAMA'):
+                return False
+            upper = device.upper()
+            return "USB" in upper or "ACM" in upper or "CH341" in upper
+
     def auto_check_target_port(self):
         all_ports = serial.tools.list_ports.comports()
-        # 读取所有已有的端口，然后将他们放在数组中
         existing_ports = [port.device for port in all_ports]
         valid_ports = []
 
-        # 如果目标端口在，那就直接加入有效端口
+        # 如果目标端口在，直接加入有效端口
         if self.target_port in existing_ports:
             valid_ports.append(self.target_port)
 
         for port in all_ports:
-            device = port.device
-            if device.startswith('/dev/ttyS') or device.startswith('/dev/ttyAMA'):
-                continue
-            if "USB" in device.upper() or "ACM" in device.upper() or "CH341" in device.upper():
-                if device != self.target_port:
-                    valid_ports.append(device)
+            if port.device == self.target_port:
+                continue   # 已经添加过了
+            if self._is_valid_serial_port(port):
+                valid_ports.append(port.device)
 
         if not valid_ports:
             if self.combo_ports.currentText() != "无可用串口":
@@ -444,33 +459,6 @@ class MainWindow(QMainWindow):
         del self.devices[port_name]
         self.tabs.removeTab(index)
 
-    def open_graph(self, g_type):
-        dev = self.tabs.currentWidget()
-        if not dev:
-            return
-
-        dev.active_type = g_type
-
-        if g_type == 'motor':
-            title = f"电机反馈数据曲线图 ({dev.port_name})"
-            is_motor = True
-            num_devices = dev.num_m
-        else:
-            title = f"IMU反馈数据曲线图 ({dev.port_name})"
-            is_motor = False
-            num_devices = dev.num_s
-
-
-        ui = GraphWindowUI(title, is_motor=is_motor, num_devices=num_devices)
-        controller = GraphController(ui, is_history_mode=False)
-        controller.main_window = self          # <--- 设置 main_window 引用
-        ui.set_controller(controller)
-
-        dev.active_graph_ui = ui
-        dev.active_graph_controller = controller
-
-        ui.show()
-
     def refresh_ports(self):
         self.combo_ports.clear()
         all_ports = serial.tools.list_ports.comports()
@@ -481,13 +469,10 @@ class MainWindow(QMainWindow):
             valid_ports.append(self.target_port)
 
         for port in all_ports:
-            device = port.device
-            if device.startswith("/dev/ttyS") or device.startswith("/dev/ttyAMA"):
+            if port.device == self.target_port:
                 continue
-
-            if ("USB" in device.upper() or "ACM" in device.upper() or "CH341" in device.upper()):
-                if device != self.target_port:
-                    valid_ports.append(device)
+            if self._is_valid_serial_port(port):
+                valid_ports.append(port.device)
 
         if valid_ports:
             seen = set()
@@ -500,7 +485,8 @@ class MainWindow(QMainWindow):
     def add_manual_device(self):
         port = self.manual_port_edit.text().strip()
         if not port:
-            QMessageBox.warning(self, "提示", "请输入串口路径，如 /dev/ttyCH341USB0")
+            hint = "COM3" if sys.platform == 'win32' else "/dev/ttyCH341USB0"
+            QMessageBox.warning(self, "提示", f"请输入串口路径，如 {hint}")
             return
         if port in self.devices:
             QMessageBox.warning(self, "提示", f"设备 {port} 已经添加")
@@ -532,7 +518,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(50, lambda: controller._load_csv_file(file_path))
 
     def open_bend_graph(self):
-        """打开当前设备选项卡的喷管弯曲历史曲线窗口"""
+        """打开当前设备选项卡的喷管数据曲线窗口"""
         current_tab = self.tabs.currentWidget()
         if not current_tab:
             QMessageBox.warning(self, "提示", "没有打开任何设备，请先添加串口设备。")
@@ -541,11 +527,11 @@ class MainWindow(QMainWindow):
         if hasattr(current_tab, 'open_bend_graph'):
             current_tab.open_bend_graph()
         else:
-            QMessageBox.warning(self, "提示", "当前设备选项卡不支持弯曲历史曲线功能。")
+            QMessageBox.warning(self, "提示", "当前设备选项卡不支持喷管数据曲线功能。")
 
     def open_3d_viewer(self):
 
-        file_path = os.path.expanduser("~/.lqts/auth_data/LQTS.html")
+        file_path = os.path.expanduser("~/.lqts/auth_data/LYZ.html")
         if not os.path.exists(file_path):
             QMessageBox.warning(self, "错误", f"3D模型文件不存在:\n{file_path}\n请检查文件是否放置正确。")
             return

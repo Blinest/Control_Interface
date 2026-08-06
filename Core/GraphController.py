@@ -244,6 +244,13 @@ class GraphController(QObject):
                 self.ui.curves[i][1].setData(time_data, y_vals)
                 self.ui.curves[i][2].setData(time_data, z_vals)
 
+        # 自动滚动 X 轴：固定显示最近 20 秒（仅实时模式）
+        if not self.is_history_mode:
+            last_t = time_data[-1]
+            x_min = max(0, last_t - 20)
+            x_max = last_t
+            self.ui.plot_widget.setXRange(x_min, x_max, padding=0)
+
     # ---------- 历史文件加载 ----------
     def open_history_dialog(self):
         dialog = HistoryFileDialog(self.ui.is_motor, parent=self.ui)
@@ -462,32 +469,33 @@ class GraphController(QObject):
 
 # 新建文件 ui/bend_graph_controller.py 或追加到 graph_controller.py
 class BendGraphController:
-    def __init__(self, window, data_provider):
+    def __init__(self, window, device_tab):
         self.window = window
-        self.data_provider = data_provider   # 回调获取最新数据
+        self.device_tab = device_tab
         self.window.set_controller(self)
 
-    def auto_focus(self):
-        if not self.window.time_data:
-            return
-        self.window.plot_widget.autoRange()
-
-    def reset_view(self):
-        self.window.plot_widget.setRange(xRange=None, yRange=None, padding=0.05)
-
     def save_data(self):
-        # 保存弯曲数据为 CSV
-        if not self.window.time_data:
-            QMessageBox.warning(self.window, "无数据", "没有数据可保存")
-            return
-        # 生成文件名
-        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        import os, csv
+        from datetime import datetime
+        from PyQt5.QtWidgets import QMessageBox
+
+        # 保存喷管数据为 CSV
         base_dir = os.path.expanduser("~/.lqts/analyze_data/bend_data")
         os.makedirs(base_dir, exist_ok=True)
-        fpath = os.path.join(base_dir, f"bend_angle_{now}.csv")
-        with open(fpath, 'w', newline='') as f:
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        fpath = os.path.join(base_dir, f"nozzle_data_{now}.csv")
+
+        with open(fpath, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f)
-            writer.writerow(["时间(秒)", "目标角度(deg)", "当前角度(deg)"])
-            for t, target, current in zip(self.window.time_data, self.window.target_data, self.window.current_data):
-                writer.writerow([f"{t:.3f}", f"{target:.3f}", f"{current:.3f}"])
-        QMessageBox.information(self.window, "保存成功", f"数据已保存至\n{fpath}")
+            writer.writerow(["Time(s)", "Target Deflection(deg)", "Current Deflection(deg)",
+                             "Target Section Area Change(%)", "Current Section Area Change(%)"])
+            for row in zip(
+                self.device_tab.hist_bend_time,
+                self.device_tab.hist_bend_target,
+                self.device_tab.hist_bend_current,
+                self.device_tab.hist_area_target,
+                self.device_tab.hist_area_current
+            ):
+                writer.writerow(row)
+        QMessageBox.information(self.window, "保存成功", f"喷管数据已保存到:\n{fpath}")
+
