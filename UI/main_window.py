@@ -29,7 +29,10 @@ import serial.tools.list_ports
 
 
 class MainWindow(QMainWindow):
-    # TARGET_PORT = "COM10"
+    # 目标端口：设置后程序会自动连接该端口的设备（不存在则不自动连接，全部手动添加）。
+    # 置为 None 或空字符串则完全关闭自动连接。
+    TARGET_PORT = "COM10"
+
     def __init__(self, auth_service=None):
         super().__init__()
         self.auth_service = auth_service  # 保存认证服务引用
@@ -48,8 +51,10 @@ class MainWindow(QMainWindow):
         self.auto_connect_timer = QTimer()
         self.auto_connect_timer.timeout.connect(self.auto_check_target_port)
         self.auto_connect_timer.start(200)
-        # 根据平台设置默认目标端口（仅用于优先匹配，不影响自动检测）
-        self.target_port = "COM3" if sys.platform == 'win32' else "/dev/ttyCH341USB0"
+        # 目标端口：优先使用常量配置；未配置时回退到平台默认值
+        self.target_port = (self.TARGET_PORT or "").strip()
+        if not self.target_port:
+            self.target_port = "COM3" if sys.platform == 'win32' else "/dev/ttyCH341USB0"
 
 
         # 创建状态栏
@@ -420,12 +425,15 @@ class MainWindow(QMainWindow):
                 self.combo_ports.setCurrentText(self.target_port)
             elif old_selection in unique_ports:
                 self.combo_ports.setCurrentText(old_selection)
-        # 自动添加所有新出现的有效端口（排除系统保留端口）
-        for port in valid_ports:
-            if port not in self.devices and port not in self.auto_added_ports:
-                self.connect_port(port)
-                self.auto_added_ports.add(port)
-                self.log(f"自动添加设备 {port}")
+        # 只自动连接配置的目标端口，其余端口一律手动添加。
+        # 避免误连无用 COM 口（如 COM3）导致界面卡死。
+        target_in_ports = self.target_port in existing_ports
+        if (self.TARGET_PORT and target_in_ports
+                and self.target_port not in self.devices
+                and self.target_port not in self.auto_added_ports):
+            self.connect_port(self.target_port)
+            self.auto_added_ports.add(self.target_port)
+            self.log(f"自动连接目标设备 {self.target_port}")
 
     def connect_port(self, port):
         if port in self.devices:
