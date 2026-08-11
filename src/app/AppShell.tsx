@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { AppFooter } from "../components/layout/AppFooter";
 import { GlobalStatusBar } from "../components/layout/GlobalStatusBar";
 import { SidebarNav } from "../components/layout/SidebarNav";
@@ -29,9 +29,17 @@ export function AppShell({
   onEmergencyStop,
   onLogout,
 }: AppShellProps) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   return (
-    <div className="app-shell">
-      <SidebarNav />
+    <div
+      className={`app-shell${sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}
+      data-testid="app-shell"
+    >
+      <SidebarNav
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+      />
       <GlobalStatusBar
         connectionLabel={connectionLabel}
         currentDeviceLabel={currentDeviceLabel}

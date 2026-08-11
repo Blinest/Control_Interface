@@ -231,6 +231,10 @@ function screenshotPath(route, theme, viewport) {
   return resolve(artifactDirectory, `${routeName}-${theme}-${viewport.name}.png`);
 }
 
+function extraScreenshotPath(name, theme, viewport) {
+  return resolve(artifactDirectory, `${name}-${theme}-${viewport.name}.png`);
+}
+
 async function verifyRoute(browser, route, theme, viewport) {
   const context = await browser.newContext({ colorScheme: theme, viewport });
   const page = await context.newPage();
@@ -285,6 +289,19 @@ async function verifyRoute(browser, route, theme, viewport) {
     await assertBodyFitsViewport(page);
     await assertAppContentHasNoVisibleScrollbar(page);
     await page.screenshot({ path: screenshotPath(route, theme, viewport), fullPage: false });
+    if (route === "/#/charts" && theme === "light" && viewport.name === "desktop") {
+      await page.getByRole("combobox", { name: "子图 1 曲线" }).selectOption("motor:1:all");
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: extraScreenshotPath("charts-motor-all", theme, viewport), fullPage: false });
+
+      await page.getByRole("combobox", { name: "子图 1 曲线" }).selectOption("motor-param:vel");
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: extraScreenshotPath("charts-all-vel", theme, viewport), fullPage: false });
+
+      await page.getByRole("button", { name: "收起曲线通道" }).click();
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: extraScreenshotPath("charts-collapsed-rail", theme, viewport), fullPage: false });
+    }
     if (consoleErrors.length > 0) throw new Error(`Console errors:\n${consoleErrors.join("\n")}`);
   } finally {
     await context.close();
@@ -304,7 +321,7 @@ try {
       }
     }
   }
-  console.log(`PASS visual smoke: ${routes.length * themes.length * viewports.length} screenshots saved to artifacts/visual-smoke`);
+  console.log(`PASS visual smoke: ${routes.length * themes.length * viewports.length + 3} screenshots saved to artifacts/visual-smoke`);
 } finally {
   await browser?.close();
   await stopVite(viteServer);

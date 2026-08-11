@@ -1,10 +1,29 @@
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { navigationGroups } from "../../app/navigation";
 
-export function SidebarNav() {
+interface SidebarNavProps {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}
+
+export function SidebarNav({ collapsed, onToggleCollapsed }: SidebarNavProps) {
+  const ToggleIcon = collapsed ? PanelLeftOpen : PanelLeftClose;
+
   return (
-    <aside className="app-sidebar" aria-label="主导航">
-      <div className="sidebar-brand">SoftUI</div>
+    <aside className={`app-sidebar${collapsed ? " is-collapsed" : ""}`} aria-label="主导航">
+      <div className="sidebar-brand">
+        <span>SoftUI</span>
+        <button
+          aria-label={collapsed ? "展开主导航" : "收起主导航"}
+          className="sidebar-collapse-button"
+          onClick={onToggleCollapsed}
+          title={collapsed ? "展开主导航" : "收起主导航"}
+          type="button"
+        >
+          <ToggleIcon aria-hidden="true" size={17} />
+        </button>
+      </div>
       <nav className="sidebar-nav">
         {navigationGroups.map((group) => (
           <section className="sidebar-nav-group" key={group.label} aria-label={group.label}>

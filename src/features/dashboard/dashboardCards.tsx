@@ -83,7 +83,7 @@ export const dashboardCardRegistry: Record<DashboardCardId, DashboardCardDefinit
         && Boolean(recordingSession)
         && sessionBelongsToDevice(recordingSession!, snapshot.live.selectedDeviceId);
       return (
-        <div className="feature-card-primary-state">
+        <div className="feature-card-primary-state compact">
           <span className={`status-chip ${recordingCurrentDevice ? "is-ok" : ""}`}>
             {recordingCurrentDevice ? (recorderStatus.paused ? "已暂停" : "记录中") : "未记录"}
           </span>

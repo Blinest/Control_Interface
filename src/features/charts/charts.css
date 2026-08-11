@@ -2,7 +2,12 @@
   min-width: 0;
   min-height: 0;
   height: 100%;
+  overflow: hidden;
   position: relative;
+}
+
+.chart-subplot .u-axis {
+  font-size: 11px;
 }
 
 .charts-main {
@@ -83,6 +88,28 @@
   font-size: 12px;
 }
 
+.channel-filter {
+  width: 100%;
+  height: 28px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.channel-item.is-assigned {
+  background: var(--surface-muted);
+}
+
+.channel-assignment {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
 .chart-layout .charts-sidebar,
 .chart-layout .charts-toolbar {
   height: 100%;
@@ -95,10 +122,6 @@
 .chart-layout .channel-items,
 .chart-layout .channel-item {
   min-width: 0;
-}
-
-.chart-layout .channel-item input[type="checkbox"] {
-  flex-shrink: 0;
 }
 
 .chart-layout .channel-name {

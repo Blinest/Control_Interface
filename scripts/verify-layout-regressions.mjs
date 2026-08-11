@@ -43,7 +43,8 @@ assert.match(sessionsCss, /\.sessions-table-region\s*\{[\s\S]*overflow:\s*auto/,
 assert.match(logsCss, /\.logs-table-region\s*\{[\s\S]*overflow:\s*auto/, "logs table must scroll internally");
 assert.doesNotMatch(css, /\.charts-sidebar\s*\{[^}]*overflow:\s*hidden/, "App.css must not clip chart sidebar");
 assert.doesNotMatch(shell, /\.page-tabs/, "top page tabs must be removed");
-assert.match(shell, /grid-template-columns: 224px/, "sidebar must stay fixed width");
+assert.match(shell, /grid-template-columns:\s*224px\s+minmax\(0,\s*1fr\)/, "sidebar must start at the full navigation width");
+assert.match(shell, /\.app-shell\.is-sidebar-collapsed[\s\S]*grid-template-columns:\s*56px\s+minmax\(0,\s*1fr\)/, "sidebar must collapse left to a narrow rail on demand");
 assert.doesNotMatch(shell, /@media \(max-width: 1439px\)/, "sidebar must not auto-collapse");
 assert.match(css, /\.empty-state[\s\S]*min-height/, "shared empty state must reserve stable space");
 assert.match(dataCss, /\.empty-state-fill[\s\S]*height:\s*100%/, "fill empty states must occupy their primary region");
@@ -58,6 +59,7 @@ assert.match(chartsCss, /\.channel-item\s*\{[\s\S]*min-width:\s*0/, "chart chann
 assert.doesNotMatch(css, /\.charts-main\s*\{[\s\S]*grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\)/, "App.css must not keep the stale chart row recipe that underfills the chart page");
 assert.match(chartsCss, /\.charts-subplot-grid\s*\{[\s\S]*grid-template-rows:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/, "charts page must reserve a filled six-subplot grid");
 assert.match(chartsCss, /\.chart-subplot-canvas\s*\{[\s\S]*height:\s*100%/, "each chart subplot canvas must fill its panel");
+assert.match(chartsCss, /\.chart-subplot-canvas\s*\{[\s\S]*overflow:\s*hidden/, "chart subplot canvases should clip axis overflow inside the card");
 assert.match(layoutsCss, /\.chart-layout:has\(\.chart-channels\.is-collapsed\)[\s\S]*grid-template-columns:\s*42px\s+minmax\(0,\s*1fr\)/, "chart sidebar must collapse to a narrow rail instead of stealing chart space");
 assert.match(layoutsCss, /\.responsive-rail-toggle/, "responsive rails need a visible collapse control");
 assert.doesNotMatch(layoutsCss, /\.responsive-rail\.is-collapsed\s*\{[^}]*display:\s*none/, "collapsed rails must remain available for re-expansion");
@@ -70,6 +72,9 @@ assert.match(settingsCss, /\.settings-navigation-tabs/, "settings page needs cat
 assert.match(settings, /SettingsLayout/, "settings page must use categorized layout");
 assert.match(settingsCss, /\.settings-section\s*\{[\s\S]*max-width:\s*none/, "settings content should fill the main area");
 assert.match(dashboardCss, /grid-auto-rows:\s*minmax\(150px,\s*1fr\)/, "dashboard cards should keep a usable minimum height while filling space");
+assert.match(dashboardCss, /\.dashboard-layout\s*\{[\s\S]*padding:\s*12px/, "dashboard summary and cards must share a consistent edge gutter");
+assert.match(dashboardCss, /\.feature-page-stack\s*\{[\s\S]*gap:\s*12px/, "dashboard vertical card rhythm must use the shared 12px gap");
+assert.match(dashboardCss, /\.feature-card-grid\s*\{[\s\S]*gap:\s*12px/, "dashboard card gutters must be uniform");
 assert.match(dashboardCss, /\.feature-card-grid[\s\S]*align-content:\s*stretch/, "dashboard cards should stretch to fill their grid");
 assert.match(dashboardCss, /\.feature-card-grid\s*\{[\s\S]*height:\s*100%/, "dashboard card grid should fill its container");
 assert.doesNotMatch(deviceWorkspaceCss, /grid-template-rows:\s*minmax\(92px,\s*108px\)\s*minmax\(360px,\s*1\.45fr\)\s*minmax\(214px,\s*0\.82fr\)/, "device workspace must not restore fixed panel row heights");

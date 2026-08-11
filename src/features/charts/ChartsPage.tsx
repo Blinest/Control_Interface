@@ -55,8 +55,19 @@ interface ZoomWindow {
   max: number;
 }
 
+interface MotorChannelParts {
+  motorId: number;
+  parameter: "pos" | "vel" | "acc";
+}
+
+interface SubplotOption {
+  value: string;
+  label: string;
+}
+
 const MAX_RENDER_POINTS = 900;
 const SUBPLOT_COUNT = 6;
+const MOTOR_PARAMETER_ORDER = ["pos", "vel", "acc"] as const;
 
 async function loadLiveWindow(count: number, deviceId?: string): Promise<DeviceSnapshot[]> {
   const frames = await tauriClient.invoke<DeviceSnapshot[]>("fetch_live_window", { count, deviceId });
@@ -95,11 +106,16 @@ function asAlignedData(
 }
 
 function normalizeSubplotAssignments(previous: string[], channels: ChannelMeta[]) {
-  const available = channels.map((channel) => channel.name);
+  const options = buildSubplotOptions(channels);
+  const available = options.map((option) => option.value);
   return Array.from({ length: SUBPLOT_COUNT }, (_, index) => {
     const current = previous[index];
     if (current && available.includes(current)) return current;
-    return channels[index % Math.max(channels.length, 1)]?.name ?? "";
+    const currentAsChannel = current && channels.some((channel) => channel.name === current)
+      ? channelAssignmentId(current)
+      : null;
+    if (currentAsChannel && available.includes(currentAsChannel)) return currentAsChannel;
+    return options[index % Math.max(options.length, 1)]?.value ?? "";
   });
 }
 
@@ -121,6 +137,114 @@ function isFullWindow(window: ZoomWindow, full: ZoomWindow) {
   const span = Math.max(0.001, full.max - full.min);
   return Math.abs(window.min - full.min) < span * 0.001
     && Math.abs(window.max - full.max) < span * 0.001;
+}
+
+function channelAssignmentId(channelName: string) {
+  return `channel:${channelName}`;
+}
+
+function parseMotorChannel(channelName: string): MotorChannelParts | null {
+  const match = /^Motor\s+(\d+)\s+(pos|vel|acc)$/.exec(channelName);
+  if (!match) return null;
+  return {
+    motorId: Number(match[1]),
+    parameter: match[2] as MotorChannelParts["parameter"],
+  };
+}
+
+function channelScaleKey(channel: ChannelMeta) {
+  if (channel.type === "sensor") return "N";
+  return channel.unit || "value";
+}
+
+function uniqueUnits(channels: ChannelMeta[]) {
+  return Array.from(new Set(channels.map((channel) => channel.unit || "--")));
+}
+
+function buildSeriesAxes(subplotChannels: ChannelMeta[]): {
+  axes: uPlot.Axis[];
+  scales: Record<string, uPlot.Scale>;
+  series: uPlot.Series[];
+} {
+  const scaleKeys = Array.from(new Set(subplotChannels.map(channelScaleKey)));
+  return {
+    scales: Object.fromEntries(scaleKeys.map((scaleKey) => [scaleKey, {}])) as Record<string, uPlot.Scale>,
+    series: subplotChannels.map((channel) => ({
+      label: channel.name,
+      scale: channelScaleKey(channel),
+      stroke: channel.color,
+      width: 1.5,
+      points: { show: false },
+    })) as uPlot.Series[],
+    axes: scaleKeys.map((scaleKey, index) => ({
+      label: scaleKey,
+      scale: scaleKey,
+      stroke: "#888",
+      grid: { stroke: index === 0 ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0)" },
+      side: 1,
+      size: 44,
+    })) as uPlot.Axis[],
+  };
+}
+
+function buildSubplotOptions(channels: ChannelMeta[]): SubplotOption[] {
+  const options: SubplotOption[] = channels.map((channel) => ({
+    value: channelAssignmentId(channel.name),
+    label: channel.name,
+  }));
+  const motorChannels = channels
+    .map((channel) => ({ channel, parts: parseMotorChannel(channel.name) }))
+    .filter((item): item is { channel: ChannelMeta; parts: MotorChannelParts } => item.parts !== null);
+  const motorIds = Array.from(new Set(motorChannels.map((item) => item.parts.motorId))).sort((a, b) => a - b);
+  for (const motorId of motorIds) {
+    if (motorChannels.filter((item) => item.parts.motorId === motorId).length > 1) {
+      options.push({ value: `motor:${motorId}:all`, label: `Motor ${motorId} 全部参数` });
+    }
+  }
+  for (const parameter of MOTOR_PARAMETER_ORDER) {
+    if (motorChannels.filter((item) => item.parts.parameter === parameter).length > 1) {
+      options.push({ value: `motor-param:${parameter}`, label: `全部电机 ${parameter}` });
+    }
+  }
+  return options;
+}
+
+function resolveSubplotChannels(assignment: string, channels: ChannelMeta[]): ChannelMeta[] {
+  const directName = assignment.startsWith("channel:") ? assignment.slice("channel:".length) : assignment;
+  const direct = channels.find((channel) => channel.name === directName);
+  if (direct) return [direct];
+
+  const motorMatch = /^motor:(\d+):all$/.exec(assignment);
+  if (motorMatch) {
+    const motorId = Number(motorMatch[1]);
+    return channels
+      .filter((channel) => {
+        const parts = parseMotorChannel(channel.name);
+        return parts?.motorId === motorId;
+      })
+      .sort((a, b) => {
+        const aParameter = parseMotorChannel(a.name)?.parameter;
+        const bParameter = parseMotorChannel(b.name)?.parameter;
+        return MOTOR_PARAMETER_ORDER.indexOf(aParameter ?? "pos") - MOTOR_PARAMETER_ORDER.indexOf(bParameter ?? "pos");
+      });
+  }
+
+  const parameterMatch = /^motor-param:(pos|vel|acc)$/.exec(assignment);
+  if (parameterMatch) {
+    return channels
+      .filter((channel) => parseMotorChannel(channel.name)?.parameter === parameterMatch[1])
+      .sort((a, b) => a.index - b.index);
+  }
+
+  return [];
+}
+
+function describeSubplotAssignment(assignment: string, channels: ChannelMeta[]) {
+  const resolved = resolveSubplotChannels(assignment, channels);
+  if (resolved.length === 0) return "未分配";
+  if (resolved.length === 1) return resolved[0].name;
+  const option = buildSubplotOptions(channels).find((candidate) => candidate.value === assignment);
+  return option?.label ?? `${resolved.length} 条曲线`;
 }
 
 function sameChannelShape(prev: ChannelMeta[], next: ChannelMeta[]) {
@@ -201,6 +325,7 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
   const mainRef = useRef<HTMLDivElement | null>(null);
   const containerRefs = useRef<Array<HTMLElement | null>>([]);
   const chartRefs = useRef<Array<uPlot | null>>([]);
+  const activeCursorSubplotRef = useRef<number | null>(null);
   const cursorFrameRef = useRef<number | null>(null);
   const lastRenderedChartKeyRef = useRef("");
   const refreshRunnerRef = useRef(createSerialRunner());
@@ -211,7 +336,9 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
   const [exportPath, setExportPath] = useState("");
   const [chartError, setChartError] = useState("");
   const [cursorReadout] = useState<CursorReadout | null>(null);
-  const [zoomWindow, setZoomWindow] = useState<ZoomWindow | null>(null);
+  const [subplotZoomWindows, setSubplotZoomWindows] = useState<Array<ZoomWindow | null>>(
+    () => Array.from({ length: SUBPLOT_COUNT }, () => null),
+  );
   const liveDeviceId = currentDeviceId ?? snapshot.live.selectedDeviceId;
   const historyCharts = useMemo(() => chartsFromFrames(historyFrames), [historyFrames]);
   const activeSnapshot = useMemo<RuntimeSnapshot>(() => {
@@ -227,16 +354,15 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
     normalizeSubplotAssignments([], groupChannels(snapshot)),
   );
 
-  const visibleSeries = useMemo(() => channels.filter((c) => c.visible), [channels]);
+  const visibleSeries = channels;
   const subplotAssignmentsKey = useMemo(() => subplotAssignments.join("|"), [subplotAssignments]);
+  const subplotOptions = useMemo(() => buildSubplotOptions(channels), [channels]);
   const assignedSubplots = useMemo(
-    () => subplotAssignments.map((name, index) =>
-      channels.find((channel) => channel.name === name) ?? channels[index % Math.max(channels.length, 1)] ?? null,
-    ),
+    () => subplotAssignments.map((assignment) => resolveSubplotChannels(assignment, channels)),
     [channels, subplotAssignmentsKey],
   );
   const assignedSubplotsKey = useMemo(
-    () => assignedSubplots.map((channel) => channel?.name ?? "").join("|"),
+    () => assignedSubplots.map((subplotChannels) => subplotChannels.map((channel) => channel.name).join(",")).join("|"),
     [assignedSubplots],
   );
   const chartData = useMemo(() => makeTimestamps(activeSnapshot), [activeSnapshot.charts]);
@@ -245,16 +371,22 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
     const lastIndex = timestamps.length - 1;
     const lastTime = lastIndex >= 0 ? timestamps[lastIndex] : 0;
     const seriesKeys = assignedSubplots
-      .map((channel) => {
-        if (!channel) return "empty";
-        const values = chartData.series[channel.name] ?? [];
-        const lastValue = values[values.length - 1] ?? 0;
-        return `${channel.name}:${values.length}:${lastValue}`;
+      .map((subplotChannels) => {
+        if (subplotChannels.length === 0) return "empty";
+        return subplotChannels.map((channel) => {
+          const values = chartData.series[channel.name] ?? [];
+          const lastValue = values[values.length - 1] ?? 0;
+          return `${channel.name}:${values.length}:${lastValue}`;
+        }).join(",");
       })
       .join("|");
     return `${selectedSessionId}:${timestamps.length}:${lastTime}:${seriesKeys}`;
   }, [assignedSubplots, chartData, selectedSessionId]);
   const chartDataRef = useRef(chartData);
+  const activeZoomWindow = useMemo(
+    () => subplotZoomWindows.find((window): window is ZoomWindow => window !== null) ?? null,
+    [subplotZoomWindows],
+  );
 
   const getChartSize = (index: number) => {
     const el = containerRefs.current[index];
@@ -304,7 +436,7 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
     );
   }, []);
 
-  const updateCursorReadout = useCallback((plot: uPlot, readoutChannels: ChannelMeta[]) => {
+  const updateCursorReadout = useCallback((subplotIndex: number, plot: uPlot, readoutChannels: ChannelMeta[]) => {
     if (cursorFrameRef.current !== null) {
       window.cancelAnimationFrame(cursorFrameRef.current);
     }
@@ -315,6 +447,11 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
 
     cursorFrameRef.current = window.requestAnimationFrame(() => {
       if (idx === null || idx < 0 || idx >= timestamps.length) {
+        if (activeCursorSubplotRef.current !== subplotIndex) {
+          cursorFrameRef.current = null;
+          return;
+        }
+        activeCursorSubplotRef.current = null;
         renderCursorReadout(null, null, visible.map((channel) => ({
           name: channel.name,
           unit: channel.unit,
@@ -325,8 +462,9 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
         return;
       }
 
+      activeCursorSubplotRef.current = subplotIndex;
       const values = visible.map((channel, seriesIndex) => {
-        const series = plot.data[seriesIndex + 1] as number[] | undefined;
+        const series = chartDataRef.current.series[channel.name] ?? (plot.data[seriesIndex + 1] as number[] | undefined);
         const value = series?.[idx];
         return {
           name: channel.name,
@@ -342,7 +480,8 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
   }, [renderCursorReadout]);
 
   useEffect(() => {
-    renderCursorReadout(null, null, assignedSubplots.filter((channel): channel is ChannelMeta => Boolean(channel)).map((channel) => ({
+    activeCursorSubplotRef.current = null;
+    renderCursorReadout(null, null, assignedSubplots.flat().map((channel) => ({
       name: channel.name,
       unit: channel.unit,
       color: channel.color,
@@ -358,18 +497,23 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
     };
   }, []);
 
-  const setChartZoom = useCallback((next: ZoomWindow) => {
+  const setChartZoom = useCallback((index: number, next: ZoomWindow) => {
     const full = fullTimeWindow(chartDataRef.current.timestamps);
     if (!full) return;
-    chartRefs.current.forEach((plot) => plot?.setScale("x", next));
-    setZoomWindow(isFullWindow(next, full) ? null : next);
+    chartRefs.current[index]?.setScale("x", next);
+    setSubplotZoomWindows((previous) => {
+      const updated = Array.from({ length: SUBPLOT_COUNT }, (_, subplotIndex) => previous[subplotIndex] ?? null);
+      updated[index] = isFullWindow(next, full) ? null : next;
+      return updated;
+    });
   }, []);
 
   const resetZoom = useCallback(() => {
     const full = fullTimeWindow(chartDataRef.current.timestamps);
     if (!full) return;
-    setChartZoom(full);
-  }, [setChartZoom]);
+    chartRefs.current.forEach((plot) => plot?.setScale("x", full));
+    setSubplotZoomWindows(Array.from({ length: SUBPLOT_COUNT }, () => null));
+  }, []);
 
   // Initialize chart
   useEffect(() => {
@@ -452,10 +596,10 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
 
   useEffect(() => {
     chartRefs.current.forEach((plot) => plot?.destroy());
-    chartRefs.current = assignedSubplots.map((channel, index) => {
+    chartRefs.current = assignedSubplots.map((subplotChannels, index) => {
       const container = containerRefs.current[index];
-      if (!container || !channel) return null;
-      const scaleKey = channel.type === "sensor" ? "N" : channel.unit || "value";
+      if (!container || subplotChannels.length === 0) return null;
+      const seriesAxes = buildSeriesAxes(subplotChannels);
       const size = getChartSize(index);
       const opts: uPlot.Options = {
         width: size.width,
@@ -470,17 +614,11 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
         legend: { show: false },
         scales: {
           x: { time: false },
-          [scaleKey]: {},
+          ...seriesAxes.scales,
         },
         series: [
           {} as uPlot.Series,
-          {
-            label: channel.name,
-            scale: scaleKey,
-            stroke: channel.color,
-            width: 1.5,
-            points: { show: false },
-          },
+          ...seriesAxes.series,
         ],
         axes: [
           {
@@ -489,16 +627,10 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
             stroke: "#888",
             grid: { stroke: "rgba(255,255,255,0.06)" },
           },
-          {
-            label: scaleKey,
-            scale: scaleKey,
-            stroke: "#888",
-            grid: { stroke: "rgba(255,255,255,0.06)" },
-            side: 1,
-          },
+          ...seriesAxes.axes,
         ],
         hooks: {
-          setCursor: [(plot) => updateCursorReadout(plot, [channel])],
+          setCursor: [(plot) => updateCursorReadout(index, plot, subplotChannels)],
           setScale: [
             (plot, scaleName) => {
               if (scaleName !== "x") return;
@@ -507,12 +639,16 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
               const full = fullTimeWindow(chartDataRef.current.timestamps);
               if (typeof min !== "number" || typeof max !== "number" || !full) return;
               const next = { min, max };
-              setZoomWindow(isFullWindow(next, full) ? null : next);
+              setSubplotZoomWindows((previous) => {
+                const updated = Array.from({ length: SUBPLOT_COUNT }, (_, subplotIndex) => previous[subplotIndex] ?? null);
+                updated[index] = isFullWindow(next, full) ? null : next;
+                return updated;
+              });
             },
           ],
         },
       };
-      return new uPlot(opts, asAlignedData(chartData, [channel]), container);
+      return new uPlot(opts, asAlignedData(chartData, subplotChannels), container);
     });
     lastRenderedChartKeyRef.current = chartDataKey;
     return () => {
@@ -525,8 +661,8 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
 
   useEffect(() => {
     const cleanups = chartRefs.current.flatMap((plot, index) => {
-      const channel = assignedSubplots[index];
-      if (!plot || !channel) return [];
+      const subplotChannels = assignedSubplots[index];
+      if (!plot || subplotChannels.length === 0) return [];
       const handleWheel = (event: WheelEvent) => {
       const full = fullTimeWindow(chartDataRef.current.timestamps);
       if (!full) return;
@@ -556,8 +692,8 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
         nextMin = full.max - nextSpan;
       }
 
-        setChartZoom({ min: nextMin, max: nextMax });
-        updateCursorReadout(plot, [channel]);
+        setChartZoom(index, { min: nextMin, max: nextMax });
+        updateCursorReadout(index, plot, subplotChannels);
       };
 
       plot.over.addEventListener("wheel", handleWheel, { passive: false });
@@ -571,26 +707,27 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
     if (paused || chartRefs.current.length === 0) return;
     if (lastRenderedChartKeyRef.current === chartDataKey) return;
     chartRefs.current.forEach((plot, index) => {
-      const channel = assignedSubplots[index];
-      if (!plot || !channel) return;
+      const subplotChannels = assignedSubplots[index];
+      if (!plot || subplotChannels.length === 0) return;
       try {
-        plot.setData(asAlignedData(chartData, [channel]), zoomWindow === null);
+        const zoomWindow = subplotZoomWindows[index] ?? null;
+        plot.setData(asAlignedData(chartData, subplotChannels), zoomWindow === null);
         if (zoomWindow) {
           const full = fullTimeWindow(chartData.timestamps);
           if (full) {
             const span = Math.min(zoomWindow.max - zoomWindow.min, full.max - full.min);
             const max = full.max;
             const min = Math.max(full.min, max - span);
-            setChartZoom({ min, max });
+            setChartZoom(index, { min, max });
           }
         }
-        updateCursorReadout(plot, [channel]);
+        updateCursorReadout(index, plot, subplotChannels);
       } catch {
         // Ignore transient mismatches while live windows are refreshing.
       }
     });
     lastRenderedChartKeyRef.current = chartDataKey;
-  }, [assignedSubplots, chartData, paused, setChartZoom, updateCursorReadout, zoomWindow]);
+  }, [assignedSubplots, chartData, paused, setChartZoom, subplotZoomWindows, updateCursorReadout]);
 
   // Handle resize
   useEffect(() => {
@@ -608,20 +745,6 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
     };
   }, [assignedSubplotsKey]);
 
-  const toggleChannel = (name: string) => {
-    setChannels((prev) =>
-      prev.map((c) => (c.name === name ? { ...c, visible: !c.visible } : c)),
-    );
-  };
-
-  const toggleGroup = (type: ChannelGroup) => {
-    const group = channels.filter((c) => c.type === type);
-    const allVisible = group.every((c) => c.visible);
-    setChannels((prev) =>
-      prev.map((c) => (c.type === type ? { ...c, visible: !allVisible } : c)),
-    );
-  };
-
   const assignSubplot = (index: number, channelName: string) => {
     setSubplotAssignments((prev) => prev.map((name, currentIndex) => (
       currentIndex === index ? channelName : name
@@ -636,9 +759,8 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
         <ChannelSidebar
           channels={channels}
           subplotAssignments={subplotAssignments}
+          subplotOptions={subplotOptions}
           onAssignSubplot={assignSubplot}
-          onToggleChannel={toggleChannel}
-          onToggleGroup={toggleGroup}
         />
       }
       toolbar={
@@ -647,7 +769,7 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
           selectedSessionId={selectedSessionId}
           paused={paused}
           playbackMode={activeSnapshot.playbackMode}
-          status={chartError || exportPath || (zoomWindow ? `时间轴 ${zoomWindow.min.toFixed(2)}s ~ ${zoomWindow.max.toFixed(2)}s` : "滚轮缩放时间轴")}
+          status={chartError || exportPath || (activeZoomWindow ? `时间轴 ${activeZoomWindow.min.toFixed(2)}s ~ ${activeZoomWindow.max.toFixed(2)}s` : "滚轮缩放时间轴")}
           onSessionChange={setSelectedSessionId}
           onPauseChange={setPaused}
           onRefresh={() => setPaused(false)}
@@ -669,25 +791,29 @@ export default function ChartsPage({ snapshot, currentDeviceId }: { snapshot: Ru
           <div className="charts-readout-values" />
         </div>
         <div className="charts-subplot-grid">
-          {assignedSubplots.map((channel, index) => (
-            <section
-              aria-label={`子图 ${index + 1} 曲线 ${channel?.name ?? "未分配"}`}
-              className="chart-subplot"
-              key={index}
-            >
-              <header className="chart-subplot-header">
-                <span>子图 {index + 1}</span>
-                <strong>{channel?.name ?? "未分配"}</strong>
-                <span>{channel?.unit ?? "--"}</span>
-              </header>
-              <div
-                className="chart-subplot-canvas"
-                ref={(node) => {
-                  containerRefs.current[index] = node;
-                }}
-              />
-            </section>
-          ))}
+          {assignedSubplots.map((subplotChannels, index) => {
+            const assignmentLabel = describeSubplotAssignment(subplotAssignments[index] ?? "", channels);
+            const units = uniqueUnits(subplotChannels).join(" / ");
+            return (
+              <section
+                aria-label={`子图 ${index + 1} 曲线 ${assignmentLabel}`}
+                className="chart-subplot"
+                key={index}
+              >
+                <header className="chart-subplot-header">
+                  <span>子图 {index + 1}</span>
+                  <strong>{assignmentLabel}</strong>
+                  <span>{units || "--"}</span>
+                </header>
+                <div
+                  className="chart-subplot-canvas"
+                  ref={(node) => {
+                    containerRefs.current[index] = node;
+                  }}
+                />
+              </section>
+            );
+          })}
         </div>
         {paused ? <div className="charts-paused-overlay">已暂停 — 数据不再更新</div> : null}
         {activeSnapshot.playbackMode ? <div className="charts-playback-overlay">历史会话 — 已加载 {historyFrames.length} 帧</div> : null}
