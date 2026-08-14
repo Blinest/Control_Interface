@@ -569,7 +569,7 @@ class Nozzle(QWidget):
         """)
         btn_plus.clicked.connect(lambda: spin.stepUp())
 
-        btn_minus = QPushButton("−")
+        btn_minus = QPushButton("-")
         btn_minus.setFixedSize(size, size)
         btn_minus.setCursor(Qt.PointingHandCursor)
         btn_minus.setStyleSheet(f"""

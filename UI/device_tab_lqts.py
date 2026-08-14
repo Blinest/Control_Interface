@@ -22,7 +22,7 @@ import time
 class LqtsDeviceTab(Nozzle):
     NOZZLE_NAME = "LQTS"
     ALLOWED_WHEN_STOPPED = {0x00, 0x01, 0x02, 0x04, 0x06, 0xFE}
-    SPINBOX_BUTTON_SIZE = 34
+    SPINBOX_BUTTON_SIZE = 44
     BEND_GRAPH_WINDOW_CLASS = None   # 延迟导入赋值，见模块底部
     BEND_GRAPH_CONTROLLER_CLASS = None
 
@@ -135,19 +135,6 @@ class LqtsDeviceTab(Nozzle):
         self.btn_closed_bend = AnimatedButton("闭环弯曲","#FF8C00","#B85C00")  # 橙色风格
         self.btn_closed_bend.clicked.connect(self.send_closed_loop_bend_command)
 
-        h_pid = QHBoxLayout()
-
-        self.spin_kp = self._create_custom_spinbox(0, 10, 0.5, prefix="kp: ", step=0.1)   # 可添加 step 参数自行扩展
-        h_pid.addWidget(self.spin_kp)
-        self.spin_ki = self._create_custom_spinbox(0, 10, 0, prefix="ki: ", step=0.01)
-        h_pid.addWidget(self.spin_ki)
-        self.spin_kd = self._create_custom_spinbox(0, 10, 0, prefix="kd: ",step=0.01)
-        h_pid.addWidget(self.spin_kd)
-        btn_apply_pid = AnimatedButton("应用PID参数", "#1E1E1E","#505050")
-        btn_apply_pid.clicked.connect(self.apply_pid_params)
-        h_pid.addWidget(btn_apply_pid)
-        l_quick.addLayout(h_pid)
-
         l_bend.addWidget(self.spin_bend)
         l_bend.addWidget(self.btn_bend)
         l_bend.addWidget(self.btn_closed_bend)   # 添加新按钮
@@ -184,9 +171,6 @@ class LqtsDeviceTab(Nozzle):
         h_sensor_line.addWidget(QLabel("IMU ID:"))
         h_sensor_line.addWidget(self.cb_sensor_monitor)
         l_sensor.addLayout(h_sensor_line)
-        self.btn_cal = AnimatedButton("IMU校准", "#1E1E1E","#505050")
-        self.btn_cal.clicked.connect(self.calibrate_sensor)
-        l_sensor.addWidget(self.btn_cal)
         left_layout.addWidget(g_sensor)
         left_layout.addStretch()
 
@@ -456,7 +440,7 @@ class LqtsDeviceTab(Nozzle):
     def get_error_disable_buttons(self):
         return [self.btn_stop, self.btn_home, self.btn_motion_ctrl, self.btn_m_next, self.btn_m_prev,
                 self.btn_s_next, self.btn_s_prev, self.btn_send_m, self.btn_bend,
-                self.btn_shrink, self.btn_cal]
+                self.btn_shrink]
 
     def send_motor(self):
         # 检查是否有电机
@@ -496,27 +480,6 @@ class LqtsDeviceTab(Nozzle):
 
         except Exception as e:
             error_msg = f"发送电机控制命令失败: {str(e)}"
-            QMessageBox.critical(self, "错误", error_msg)
-            self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
-
-    def calibrate_sensor(self):
-        if self.num_s == 0:
-            error_msg = "当前没有可用的IMU传感器，无法进行传感器校准"
-            QMessageBox.warning(self, "错误", error_msg)
-            self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
-            return
-
-        idx = self.cb_sensor_monitor.currentIndex() + 1
-        if idx > self.num_s:
-            error_msg = f"IMU ID {idx} 无效，当前只有 {self.num_s} 个传感器"
-            QMessageBox.warning(self, "错误", error_msg)
-            self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
-            return
-
-        try:
-            self.send_cmd(0x03, f"校准IMU{idx}", f"Sensor {idx} 校准", struct.pack('>B', idx), is_motor=False)
-        except Exception as e:
-            error_msg = f"发送IMU校准命令失败: {str(e)}"
             QMessageBox.critical(self, "错误", error_msg)
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
 
@@ -660,12 +623,6 @@ class LqtsDeviceTab(Nozzle):
         # 发送弯曲命令（不记录日志）
         self.send_bend_command(angle_deg=target_angle, log_enabled=False)
         self.last_sent_angle = target_angle
-
-    def apply_pid_params(self):
-        self.pid.Kp = self.spin_kp.spin.value()
-        self.pid.Ki = self.spin_ki.spin.value()
-        self.pid.Kd = self.spin_kd.spin.value()
-        self.logger(f"PID参数已更新: Kp={self.pid.Kp:.2f}, Ki={self.pid.Ki:.2f}, Kd={self.pid.Kd:.2f}", port=self.port_name)
 
     # ------------------ 核心：数据解析（调用后端）------------------
     @pyqtSlot(bytes)
