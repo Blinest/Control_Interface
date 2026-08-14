@@ -333,10 +333,24 @@ class MainWindow(QMainWindow):
             else:
                 is_system_port = device.startswith("/dev/ttyS") or device.startswith("/dev/ttyAMA")
                 device_upper = device.upper()
-                is_valid = not is_system_port and any(keyword in device_upper for keyword in ("USB", "ACM", "CH341"))
+                is_valid = not is_system_port and any(keyword in device_upper for keyword in ("USB", "ACM", "CH341", "CH340"))
             if is_valid:
                 seen.add(device)
                 valid_ports.append(device)
+
+        # pyserial 在 Linux 上枚举端口时使用固定 glob 模式，不包含 CH341 官方驱动
+        # 创建的 /dev/ttyCH341USB0 这类设备，这里手动补全。
+        if sys.platform != "win32":
+            try:
+                import glob as _glob
+                import os as _os
+                ch341_candidates = _glob.glob('/dev/ttyCH341USB*')
+                for device in ch341_candidates:
+                    if device not in seen:
+                        seen.add(device)
+                        valid_ports.append(device)
+            except Exception:
+                pass
         return valid_ports
 
     def auto_check_target_port(self):
