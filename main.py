@@ -13,7 +13,7 @@ QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 app = QApplication(sys.argv)
 app.setStyle("Fusion")
-app.setFont(QFont("Microsoft YaHei UI", 13))
+app.setFont(QFont("Noto Sans CJK SC", 13))
 auth_service = AuthService()
 
 login = LoginWindow()

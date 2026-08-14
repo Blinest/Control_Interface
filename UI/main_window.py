@@ -237,7 +237,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet("""
             QMainWindow, QWidget {
                 background: #d9d9d6;
-                font-family: 'Microsoft YaHei UI', '微软雅黑 Control_Interface';
+                font-family: 'Noto Sans CJK SC';
                 font-size: 13pt;
             }
             QToolBar { spacing: 8px; padding: 6px; }
