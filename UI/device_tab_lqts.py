@@ -163,15 +163,6 @@ class LqtsDeviceTab(Nozzle):
         f_addr.addWidget(self.spin_m_acc, 1, 2)
         left_layout.addWidget(g_addr)
 
-        g_sensor = self.create_group_box("4. IMU数据监控")
-        l_sensor = QVBoxLayout(g_sensor)
-        self.cb_sensor_monitor = QComboBox()
-        self.cb_sensor_monitor.currentIndexChanged.connect(self.update_sensor_monitor)
-        h_sensor_line = QHBoxLayout()
-        h_sensor_line.addWidget(QLabel("IMU ID:"))
-        h_sensor_line.addWidget(self.cb_sensor_monitor)
-        l_sensor.addLayout(h_sensor_line)
-        left_layout.addWidget(g_sensor)
         left_layout.addStretch()
 
 
@@ -346,7 +337,6 @@ class LqtsDeviceTab(Nozzle):
         for i in reversed(range(self.grid_s.count())):
             self.grid_s.itemAt(i).widget().setParent(None)
         self.cb_motor_id.clear()
-        self.cb_sensor_monitor.clear()
         self.cb_view_id.clear()
         if self.num_m > 0:
             while len(self.motor_data) < self.num_m:
@@ -376,7 +366,6 @@ class LqtsDeviceTab(Nozzle):
             card, lbls = self.create_sensor_card(f"IMU ID:{i + 1}", "#D83B01")
             self.cards_sensor.append((card, lbls))
             self.grid_s.addWidget(card, 0, i % 3)
-            self.cb_sensor_monitor.addItem(f"IMU {i + 1}")
         max_id = max(self.num_m, self.num_s)
         self.cb_view_id.addItems([f"ID {i + 1}" for i in range(max_id)])
         self.refresh_pagination()
@@ -720,8 +709,6 @@ class LqtsDeviceTab(Nozzle):
                 for _, value_label in self.single_cards:
                     value_label.setText("--")
 
-        if hasattr(self, 'cb_sensor_monitor'):
-            self.update_sensor_monitor(self.cb_sensor_monitor.currentIndex())
         if hasattr(self, 'motor_status_ball') and hasattr(self, 'motor_states'):
             idx = self.cb_motor_id.currentIndex()
             if idx >= 0 and idx < len(self.motor_states):
@@ -749,9 +736,6 @@ class LqtsDeviceTab(Nozzle):
                     self.motor_status_ball.setStyleSheet("color: #D13438; font-size: 13pt;")
                 else:
                     self.motor_status_ball.setStyleSheet("color: #107C10; font-size: 13pt;")
-
-    def update_sensor_monitor(self, idx=None):
-        pass
 
     def record_history(self):
         if self.serial_error:
