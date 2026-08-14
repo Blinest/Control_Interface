@@ -67,11 +67,11 @@ class Nozzle(QWidget):
     # 类属性（子类可覆盖）
     NOZZLE_NAME = "喷管"                  # 显示名称
     ALLOWED_WHEN_STOPPED = {0x00, 0x01, 0x02, 0x04, 0x06, 0xFE}  # 未启动时可发送的功能码
-    SPINBOX_BUTTON_SIZE = 34            # 自定义 SpinBox 加减按钮尺寸
-    SPINBOX_FONT_SIZE = "10pt"          # SpinBox 输入框字号
-    SPINBOX_BUTTON_FONT_SIZE = "10pt"   # SpinBox 加减按钮字号
-    CARD_VALUE_FONT_SIZE = "12pt"       # 数据卡片数值字号
-    CARD_TITLE_FONT_SIZE = "12pt"       # 数据卡片标题字号
+    SPINBOX_BUTTON_SIZE = 42            # 自定义 SpinBox 加减按钮尺寸
+    SPINBOX_FONT_SIZE = "14pt"          # SpinBox 输入框字号
+    SPINBOX_BUTTON_FONT_SIZE = "16pt"   # SpinBox 加减按钮字号
+    CARD_VALUE_FONT_SIZE = "16pt"       # 数据卡片数值字号
+    CARD_TITLE_FONT_SIZE = "14pt"       # 数据卡片标题字号
     BEND_GRAPH_WINDOW_CLASS = None      # 历史曲线窗口类
     BEND_GRAPH_CONTROLLER_CLASS = None  # 历史曲线控制器类
 
@@ -84,10 +84,10 @@ class Nozzle(QWidget):
 
     # ---------- 统一样式（子类可覆盖） ----------
     GROUPBOX_STYLE = (
-        "QGroupBox { font-size: 10pt; font-weight: bold; border: 3px solid white; "
-        "border-radius: 5px; margin-top: 15px; padding: 5px; }"
+        "QGroupBox { font-size: 14pt; font-weight: bold; border: 3px solid white; "
+        "border-radius: 5px; margin-top: 15px; padding: 8px; }"
     )
-    SECTION_LABEL_STYLE = "font-size: 12pt; font-weight: bold;"
+    SECTION_LABEL_STYLE = "font-size: 16pt; font-weight: bold;"
     SPLITTER_STYLE = """
         QSplitter::handle {
             background: #e0e0e0;
@@ -347,12 +347,12 @@ class Nozzle(QWidget):
         top_layout = QHBoxLayout(top_widget)
         top_layout.setContentsMargins(0, 0, 0, 0)
         title_label = QLabel(title)
-        title_label.setStyleSheet("color: #333; font-weight: bold; font-size: 10pt; border: none;")
+        title_label.setStyleSheet("color: #333; font-weight: bold; font-size: 13pt; border: none;")
         title_label.setAlignment(Qt.AlignCenter)
         top_layout.addWidget(title_label)
         top_layout.addStretch()
         state_ball = QLabel("●")
-        state_ball.setStyleSheet("color: #888; font-size: 8pt; border: none;")
+        state_ball.setStyleSheet("color: #888; font-size: 13pt; border: none;")
         top_layout.addWidget(state_ball)
         main_layout.addWidget(top_widget)
 
@@ -362,7 +362,7 @@ class Nozzle(QWidget):
             block_layout.setContentsMargins(0, 0, 0, 0)
             block_layout.setSpacing(4)
             title_lbl = QLabel(f"{block_name} ({unit})")
-            title_lbl.setStyleSheet(f"background-color: #d9d9d6;color: {color}; font-size: 10pt; font-weight: bold; border: none;")
+            title_lbl.setStyleSheet(f"background-color: #d9d9d6;color: {color}; font-size: 13pt; font-weight: bold; border: none;")
             title_lbl.setAlignment(Qt.AlignCenter)
             block_layout.addWidget(title_lbl)
             value_widget = QWidget()
@@ -370,10 +370,10 @@ class Nozzle(QWidget):
             value_layout.setContentsMargins(0, 0, 0, 0)
             value_layout.setSpacing(30)
             cur_label = QLabel("当前: 0.00")
-            cur_label.setStyleSheet("color: #0078D7; font-size: 8pt; font-weight: bold; border: none;")
+            cur_label.setStyleSheet("color: #0078D7; font-size: 13pt; font-weight: bold; border: none;")
             cur_label.setAlignment(Qt.AlignCenter)
             tar_label = QLabel("目标: 0.00")
-            tar_label.setStyleSheet("color: #666; font-size: 8pt; border: none;")
+            tar_label.setStyleSheet("color: #666; font-size: 13pt; border: none;")
             tar_label.setAlignment(Qt.AlignCenter)
             value_layout.addStretch()
             value_layout.addWidget(cur_label)
@@ -418,7 +418,7 @@ class Nozzle(QWidget):
         top_layout = QHBoxLayout(top_widget)
         top_layout.setContentsMargins(0, 0, 0, 0)
         title_label = QLabel(title)
-        title_label.setStyleSheet("color: #333; font-weight: bold; font-size: 10pt; border: none;")
+        title_label.setStyleSheet("color: #333; font-weight: bold; font-size: 13pt; border: none;")
         title_label.setAlignment(Qt.AlignLeft)
         top_layout.addWidget(title_label)
         main_layout.addWidget(top_widget)
@@ -430,11 +430,11 @@ class Nozzle(QWidget):
             block_layout.setSpacing(10)
             block_layout.addStretch()
             label = QLabel(f"{axis_name} ({unit}):")
-            label.setStyleSheet(f"color: {color}; font-size: 8pt; font-weight: bold; border: none;")
+            label.setStyleSheet(f"color: {color}; font-size: 13pt; font-weight: bold; border: none;")
             label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             block_layout.addWidget(label)
             value_label = QLabel("0.00")
-            value_label.setStyleSheet("color: #000; font-size: 8pt; font-weight: bold; border: none;")
+            value_label.setStyleSheet("color: #000; font-size: 13pt; font-weight: bold; border: none;")
             value_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             block_layout.addWidget(value_label)
             block_layout.addStretch()

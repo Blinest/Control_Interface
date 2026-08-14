@@ -113,7 +113,7 @@ class GraphWindowUI(QDialog):
             border-radius: 4px;
             padding: 5px 10px;
             font-family: 'Consolas', monospace;
-            font-size: 10pt;
+            font-size: 13pt;
         """)
         self.coord_label.setMinimumHeight(60)      # 设置最小高度
         self.coord_label.setWordWrap(True)         # 允许换行
@@ -266,7 +266,7 @@ class HistoryFileDialog(QDialog):
 
         # 标题标签
         title = QLabel("📁 双击文件加载历史数据")
-        title.setStyleSheet("font-size: 10pt; font-weight: bold; padding: 5px;")
+        title.setStyleSheet("font-size: 13pt; font-weight: bold; padding: 5px;")
         layout.addWidget(title)
 
         # 文件列表
@@ -276,7 +276,7 @@ class HistoryFileDialog(QDialog):
                 background-color: #F5F5F5;
                 border: 1px solid #CCC;
                 border-radius: 4px;
-                font-size: 10pt;
+                font-size: 13pt;
             }
             QListWidget::item {
                 padding: 6px;
@@ -306,7 +306,7 @@ class HistoryFileDialog(QDialog):
 
         # 状态标签
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #666; font-size: 10pt; padding: 3px;")
+        self.status_label.setStyleSheet("color: #666; font-size: 13pt; padding: 3px;")
         layout.addWidget(self.status_label)
 
     def _get_data_dir(self):

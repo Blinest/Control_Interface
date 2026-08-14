@@ -22,12 +22,12 @@ import time
 class LyzDeviceTab(Nozzle):
     NOZZLE_NAME = "LYZ"
     ALLOWED_WHEN_STOPPED = {0x00, 0x01, 0x02, 0x04, 0x06, 0xFE}
-    SPINBOX_BUTTON_SIZE = 40
-    SPINBOX_FONT_SIZE = "12pt"
-    SPINBOX_BUTTON_FONT_SIZE = "12pt"
+    SPINBOX_BUTTON_SIZE = 44
+    SPINBOX_FONT_SIZE = "14pt"
+    SPINBOX_BUTTON_FONT_SIZE = "16pt"
     GROUPBOX_STYLE = (
-        "QGroupBox { font-size: 12pt; font-weight: bold; border: 3px solid white; "
-        "border-radius: 5px; margin-top: 15px; padding: 5px; }"
+        "QGroupBox { font-size: 14pt; font-weight: bold; border: 3px solid white; "
+        "border-radius: 5px; margin-top: 15px; padding: 8px; }"
     )
     BEND_GRAPH_WINDOW_CLASS = None   # 延迟导入赋值，见模块底部
     BEND_GRAPH_CONTROLLER_CLASS = None

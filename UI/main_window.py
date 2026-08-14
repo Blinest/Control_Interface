@@ -178,7 +178,7 @@ class MainWindow(QMainWindow):
                 font-weight: bold;
                 color: #0078D7;
                 padding: 5px 15px;
-                font-size: 12pt;
+                font-size: 13pt;
                 background-color: rgba(255, 255, 255, 0.3);
                 border-radius: 15px;
                 margin-right: 5px;
@@ -193,7 +193,7 @@ class MainWindow(QMainWindow):
                     color: white;
                     padding: 5px 15px;
                     border-radius: 4px;
-                    font-size: 12pt;
+                    font-size: 13pt;
                 }
                 QPushButton:hover { background-color: #D13438; }
             """)
@@ -235,13 +235,21 @@ class MainWindow(QMainWindow):
 
     def _setup_style(self):
         self.setStyleSheet("""
-            QMainWindow, QWidget { background: #d9d9d6; font-family: '微软雅黑 Control_Interface'; }
-            QPushButton { padding: 8px; border: 3px solid black; border-radius: 4px; background: #53565b; }
-            QPushButton[class="page-btn"] { background-color: grey; color: white; font-weight: bold; border: 3px solid #ccc; border-radius: 4px; padding: 5px 10px; }
-            QPushButton[class="emergency"] { border-radius: 15px; background-color: red; color: #a7a8aa; font-weight: bold; font-size: 10pt; border: none; }
-            QGroupBox { border: 3px solid white; border-radius: 5px; margin-top: 15px; padding: 5px; font-weight:bold; }
-            QComboBox { padding: 4px; border: 2px solid white; border-radius: 3px; background: #d9d9d6; color: #333; }
-            QStatusBar { background-color: #d7d2cb; color: #333; font-weight: bold; border-top: 2px solid #ccc; }
+            QMainWindow, QWidget {
+                background: #d9d9d6;
+                font-family: 'Microsoft YaHei UI', '微软雅黑 Control_Interface';
+                font-size: 13pt;
+            }
+            QToolBar { spacing: 8px; padding: 6px; }
+            QToolButton { font-size: 13pt; padding: 8px 10px; }
+            QLabel, QCheckBox, QComboBox, QLineEdit, QTextEdit { font-size: 13pt; }
+            QTabBar::tab { font-size: 13pt; padding: 10px 18px; min-width: 110px; }
+            QPushButton { padding: 10px 14px; border: 3px solid black; border-radius: 4px; background: #53565b; font-size: 13pt; }
+            QPushButton[class="page-btn"] { background-color: grey; color: white; font-weight: bold; border: 3px solid #ccc; border-radius: 4px; padding: 8px 14px; }
+            QPushButton[class="emergency"] { border-radius: 15px; background-color: red; color: #a7a8aa; font-weight: bold; font-size: 14pt; border: none; }
+            QGroupBox { border: 3px solid white; border-radius: 5px; margin-top: 18px; padding: 8px; font-size: 14pt; font-weight:bold; }
+            QComboBox, QLineEdit { padding: 6px; min-height: 30px; border: 2px solid white; border-radius: 3px; background: #d9d9d6; color: #333; }
+            QStatusBar { background-color: #d7d2cb; color: #333; font-weight: bold; border-top: 2px solid #ccc; font-size: 13pt; }
             QStatusBar::item { border: none; }
         """)
 

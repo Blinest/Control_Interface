@@ -168,7 +168,7 @@ class LqtsDeviceTab(Nozzle):
         f_addr.addWidget(self.cb_motor_id, 0, 1)
         f_addr.addWidget(self.btn_send_m, 0, 2)
         self.motor_status_ball = QLabel("●")
-        self.motor_status_ball.setStyleSheet("color: red; font-size: 8pt;")
+        self.motor_status_ball.setStyleSheet("color: red; font-size: 13pt;")
         f_addr.addWidget(self.motor_status_ball, 0, 3)
         self.cb_motor_id.currentIndexChanged.connect(self.update_motor_status_ball)
         f_addr.addWidget(self.spin_m_pos, 1, 0)
@@ -735,9 +735,9 @@ class LqtsDeviceTab(Nozzle):
             labels[5].setText(f"目标: {target_acc:.2f}")
             lbl_state = labels[6]
             if state_val == 0:
-                lbl_state.setStyleSheet("color: #D13438; font-size:10pt; border: none;")
+                lbl_state.setStyleSheet("color: #D13438; font-size:13pt; border: none;")
             else:
-                lbl_state.setStyleSheet("color: #107C10; font-size:10pt; border: none;")
+                lbl_state.setStyleSheet("color: #107C10; font-size:13pt; border: none;")
         for i in range(self.s_page * 3, min((self.s_page + 1) * 3, self.num_s)):
             self.cards_sensor[i][1][0].setText(f"{self.sensor_data[i][0]:.2f}")
             self.cards_sensor[i][1][1].setText(f"{self.sensor_data[i][1]:.2f}")
@@ -770,9 +770,9 @@ class LqtsDeviceTab(Nozzle):
             if idx >= 0 and idx < len(self.motor_states):
                 state_val = self.motor_states[idx]
                 if state_val == 0:
-                    self.motor_status_ball.setStyleSheet("color: #D13438; font-size: 8pt;")
+                    self.motor_status_ball.setStyleSheet("color: #D13438; font-size: 13pt;")
                 else:
-                    self.motor_status_ball.setStyleSheet("color: #107C10; font-size: 8pt;")
+                    self.motor_status_ball.setStyleSheet("color: #107C10; font-size: 13pt;")
         if hasattr(self, 'target_angle_val'):
             self.target_angle_val.setText(f"{self.target_bend_angle:.2f}")
         if hasattr(self, 'current_angle_val'):
@@ -789,9 +789,9 @@ class LqtsDeviceTab(Nozzle):
             if idx >= 0 and idx < len(self.motor_states):
                 state_val = self.motor_states[idx]
                 if state_val == 0:
-                    self.motor_status_ball.setStyleSheet("color: #D13438; font-size: 8pt;")
+                    self.motor_status_ball.setStyleSheet("color: #D13438; font-size: 13pt;")
                 else:
-                    self.motor_status_ball.setStyleSheet("color: #107C10; font-size: 8pt;")
+                    self.motor_status_ball.setStyleSheet("color: #107C10; font-size: 13pt;")
 
     def update_sensor_monitor(self, idx=None):
         pass

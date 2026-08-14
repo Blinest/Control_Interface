@@ -24,6 +24,8 @@ class LoginWindow(QDialog):
     def _init_ui(self):
         """初始化UI"""
         self.setWindowTitle("系统登录 - 喷管控制平台")
+        self.setWindowFlags(Qt.FramelessWindowHint)  # ← 去掉外框
+        self.setAttribute(Qt.WA_TranslucentBackground) 
         screen = QApplication.primaryScreen().availableGeometry()
         self.resize(int(screen.width() * 0.1), int(screen.height() * 0.5))
         self.setMinimumSize(600, 480)   # 防止缩得过小导致控件挤爆
@@ -60,16 +62,16 @@ class LoginWindow(QDialog):
 
         for w in [self.user_input, self.pass_input]:
             w.setStyleSheet(
-                "padding: 10px; font-size: 10pt; "
+                "padding: 10px; font-size: 13pt; "
                 "border: 3px solid black; border-radius: 4px;"
             )
 
         form_layout.addRow(
-            QLabel("账号:", styleSheet="font-size: 10pt; border: none;"),
+            QLabel("账号:", styleSheet="font-size: 13pt; border: none;"),
             self.user_input
         )
         form_layout.addRow(
-            QLabel("密码:", styleSheet="font-size: 10pt; border: none;"),
+            QLabel("密码:", styleSheet="font-size: 13pt; border: none;"),
             self.pass_input
         )
 
@@ -78,7 +80,7 @@ class LoginWindow(QDialog):
         self.remember_checkbox = QCheckBox("记住密码")
         self.remember_checkbox.setStyleSheet("""
             QCheckBox {
-                font-size: 8pt;
+                font-size: 13pt;
                 color: #333;
                 spacing: 8px;
                 border: none;
@@ -105,7 +107,7 @@ class LoginWindow(QDialog):
             QPushButton { 
                 background-color: black; 
                 color: #d9d9d6; 
-                font-size: 10pt; 
+                font-size: 13pt; 
                 padding: 12px; 
                 border-radius: 6px;
             } 
@@ -120,7 +122,7 @@ class LoginWindow(QDialog):
             QPushButton { 
                 background-color: #555555; 
                 color: white; 
-                font-size: 10pt; 
+                font-size: 13pt; 
                 padding: 12px; 
                 border-radius: 6px;
             } 
@@ -140,7 +142,7 @@ class LoginWindow(QDialog):
             QPushButton { 
                 background-color: transparent; 
                 color: #333; 
-                font-size: 10pt;
+                font-size: 13pt;
                 border: none;
                 text-decoration: none;
                 padding: 5px;
@@ -251,7 +253,7 @@ class RegisterDialog(QDialog):
         # 标题
         title = QLabel("创建新账号" if not self.is_admin_context else "创建用户账号")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 12pt; font-weight: bold; border: none;")
+        title.setStyleSheet("font-size: 13pt; font-weight: bold; border: none;")
         layout.addWidget(title)
 
         # 表单
@@ -268,13 +270,13 @@ class RegisterDialog(QDialog):
         self.confirm_input.setPlaceholderText("再次输入密码")
         self.confirm_input.setEchoMode(QLineEdit.Password)
 
-        input_style = "padding: 8px; font-size: 12pt; border: 2px solid black; border-radius: 4px;"
+        input_style = "padding: 8px; font-size: 13pt; border: 2px solid black; border-radius: 4px;"
         for w in [self.username_input, self.password_input, self.confirm_input]:
             w.setStyleSheet(input_style)
 
-        form_layout.addRow(QLabel("用户名:", styleSheet="font-size: 12pt;"), self.username_input)
-        form_layout.addRow(QLabel("密码:", styleSheet="font-size: 12pt;"), self.password_input)
-        form_layout.addRow(QLabel("确认密码:", styleSheet="font-size: 12pt;"), self.confirm_input)
+        form_layout.addRow(QLabel("用户名:", styleSheet="font-size: 13pt;"), self.username_input)
+        form_layout.addRow(QLabel("密码:", styleSheet="font-size: 13pt;"), self.password_input)
+        form_layout.addRow(QLabel("确认密码:", styleSheet="font-size: 13pt;"), self.confirm_input)
 
         # 如果是管理员创建用户，显示角色选择
         if self.is_admin_context:
@@ -283,13 +285,13 @@ class RegisterDialog(QDialog):
             self.role_combo.setStyleSheet("""
                 QComboBox {
                     padding: 8px;
-                    font-size: 12pt;
+                    font-size: 13pt;
                     border: 2px solid black;
                     border-radius: 4px;
                     background-color: white;
                 }
             """)
-            form_layout.addRow(QLabel("角色:", styleSheet="font-size: 12pt;"), self.role_combo)
+            form_layout.addRow(QLabel("角色:", styleSheet="font-size: 13pt;"), self.role_combo)
 
         layout.addWidget(form_widget)
 
@@ -302,7 +304,7 @@ class RegisterDialog(QDialog):
                 color: white; 
                 padding: 10px 20px; 
                 border-radius: 4px;
-                font-size: 12pt;
+                font-size: 13pt;
             } 
             QPushButton:hover { 
                 background-color: grey; 
@@ -317,7 +319,7 @@ class RegisterDialog(QDialog):
                 color: white; 
                 padding: 10px 20px; 
                 border-radius: 4px;
-                font-size: 12pt;
+                font-size: 13pt;
             } 
             QPushButton:hover { 
                 background-color: #777; 
@@ -379,7 +381,7 @@ class ChangePasswordDialog(QDialog):
         # 标题
         title = QLabel("修改密码")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 10pt; font-weight: bold; border: none;")
+        title.setStyleSheet("font-size: 13pt; font-weight: bold; border: none;")
         layout.addWidget(title)
 
         # 表单
@@ -399,13 +401,13 @@ class ChangePasswordDialog(QDialog):
         self.confirm_password.setPlaceholderText("再次输入新密码")
         self.confirm_password.setEchoMode(QLineEdit.Password)
 
-        input_style = "padding: 8px; font-size: 10pt; border: 2px solid black; border-radius: 4px;"
+        input_style = "padding: 8px; font-size: 13pt; border: 2px solid black; border-radius: 4px;"
         for w in [self.old_password, self.new_password, self.confirm_password]:
             w.setStyleSheet(input_style)
 
-        form_layout.addRow(QLabel("旧密码:", styleSheet="font-size: 10pt;"), self.old_password)
-        form_layout.addRow(QLabel("新密码:", styleSheet="font-size: 10pt;"), self.new_password)
-        form_layout.addRow(QLabel("确认密码:", styleSheet="font-size: 10pt;"), self.confirm_password)
+        form_layout.addRow(QLabel("旧密码:", styleSheet="font-size: 13pt;"), self.old_password)
+        form_layout.addRow(QLabel("新密码:", styleSheet="font-size: 13pt;"), self.new_password)
+        form_layout.addRow(QLabel("确认密码:", styleSheet="font-size: 13pt;"), self.confirm_password)
 
         layout.addWidget(form_widget)
 
@@ -414,7 +416,7 @@ class ChangePasswordDialog(QDialog):
             self.username_input = QLineEdit()
             self.username_input.setPlaceholderText("输入用户名")
             self.username_input.setStyleSheet(input_style)
-            form_layout.insertRow(0, QLabel("用户名:", styleSheet="font-size: 10pt;"), self.username_input)
+            form_layout.insertRow(0, QLabel("用户名:", styleSheet="font-size: 13pt;"), self.username_input)
 
         # 按钮
         btn_layout = QHBoxLayout()
@@ -425,7 +427,7 @@ class ChangePasswordDialog(QDialog):
                 color: white; 
                 padding: 10px 20px; 
                 border-radius: 4px;
-                font-size: 10pt;
+                font-size: 13pt;
             } 
             QPushButton:hover { 
                 background-color: grey; 
@@ -440,7 +442,7 @@ class ChangePasswordDialog(QDialog):
                 color: white; 
                 padding: 10px 20px; 
                 border-radius: 4px;
-                font-size: 10pt;
+                font-size: 13pt;
             } 
             QPushButton:hover { 
                 background-color: #777; 
