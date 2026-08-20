@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot
 
 from Core.protocol_lqts import ProtocolParser, DataFilter, FrameAssembler
+from Core.auth import GlobalHistory
 from UI.nozzle import Nozzle, TouchSplitter
 # 自定义类
 from .widgets import AnimatedButton
@@ -44,7 +45,7 @@ class LqtsDeviceTab(Nozzle):
         self.hist_bend_time = []       # 时间列表
         self.hist_bend_target = []     # 目标角度列表
         self.hist_bend_current = []    # 当前角度列表
-        self.bend_graph_window = None  # 弯曲曲线窗口实例
+        self.bend_graph_window = None  # 角度偏转曲线窗口实例
         self.bend_graph_controller = None
 
         self.m_page, self.s_page = 0, 0
@@ -107,44 +108,41 @@ class LqtsDeviceTab(Nozzle):
         l_power.addWidget(self.btn_stop)
         left_layout.addWidget(g_power)
 
-        g_quick = self.create_group_box("2. 弯曲与截面收缩控制")
-        l_quick = QVBoxLayout(g_quick)
-        self.btn_motion_ctrl = AnimatedButton("⟳ 运动控制","#1E1E1E","#505050")
-        self.btn_motion_ctrl.clicked.connect(self.send_motion_ctrl_command)
-        self.btn_home = AnimatedButton("⌂ 一键归中","#1E1E1E","#505050")
-        self.btn_home.clicked.connect(self.send_home_command)
-        l_home_row = QHBoxLayout()
-        l_home_row.addWidget(self.btn_motion_ctrl)
-        l_home_row.addWidget(self.btn_home)
+        g_bend = self.create_group_box("2. 角度偏转控制")
+        self.lamp_bend = self.create_status_lamp()
+        v_bend_box = QVBoxLayout(g_bend)
+        l_bend = QHBoxLayout()
+        # 自定义带加减按钮的 SpinBox 容器
+        self.spin_bend = self._create_custom_spinbox(-70, 70, 0, prefix= "Angle: ", suffix="°")
+        self.btn_bend = AnimatedButton("开环角度偏转","#00BCD4","#505050")
+        self.btn_bend.clicked.connect(lambda checked: self.send_bend_command())
+        # 闭环角度偏转按钮
+        self.btn_closed_bend = AnimatedButton("闭环角度偏转","#FF8C00","#B85C00")  # 橙色风格
+        self.btn_closed_bend.clicked.connect(self.send_closed_loop_bend_command)
+        l_bend.addWidget(self.spin_bend)
+        l_bend.addWidget(self.btn_bend)
+        l_bend.addWidget(self.btn_closed_bend)
+        v_bend_box.addLayout(l_bend)
+        v_bend_box.addWidget(self.create_status_lamp_row(self.lamp_bend))
+        left_layout.addWidget(g_bend)
+
+        g_shrink = self.create_group_box("3. 截面收缩控制")
+        self.lamp_shrink = self.create_status_lamp()
+        v_shrink_box = QVBoxLayout(g_shrink)
         l_shrink = QHBoxLayout()
         self.spin_scale = self._create_custom_spinbox(75, 100, 75, prefix="Scale: ", suffix='%')
         self.btn_shrink = AnimatedButton("⇲ 截面收缩","#00BCD4","#505050")
         self.btn_shrink.clicked.connect(self.send_scale_command)
         l_shrink.addWidget(self.spin_scale)
         l_shrink.addWidget(self.btn_shrink)
+        v_shrink_box.addLayout(l_shrink)
+        v_shrink_box.addWidget(self.create_status_lamp_row(self.lamp_shrink))
+        left_layout.addWidget(g_shrink)
 
-        # 原弯曲控制布局
-        l_bend = QHBoxLayout()
-        # 自定义带加减按钮的 SpinBox 容器
-        self.spin_bend = self._create_custom_spinbox(-70, 70, 0, prefix= "Angle: ", suffix="°")
-        self.btn_bend = AnimatedButton("开环弯曲","#00BCD4","#505050")
-
-        self.btn_bend.clicked.connect(lambda checked: self.send_bend_command())
-
-        # 新增闭环弯曲按钮
-        self.btn_closed_bend = AnimatedButton("闭环弯曲","#FF8C00","#B85C00")  # 橙色风格
-        self.btn_closed_bend.clicked.connect(self.send_closed_loop_bend_command)
-
-        l_bend.addWidget(self.spin_bend)
-        l_bend.addWidget(self.btn_bend)
-        l_bend.addWidget(self.btn_closed_bend)   # 添加新按钮
-        l_quick.addLayout(l_home_row)
-        l_quick.addLayout(l_shrink)
-        l_quick.addLayout(l_bend)
-        left_layout.addWidget(g_quick)
-
-        g_addr = self.create_group_box("3. 电机控制")
-        f_addr = QGridLayout(g_addr)
+        g_addr = self.create_group_box("4. 电机控制")
+        self.lamp_motor = self.create_status_lamp()
+        v_addr_box = QVBoxLayout(g_addr)
+        f_addr = QGridLayout()
         self.cb_motor_id = QComboBox()
         self.spin_m_pos = self._create_custom_spinbox(-80, 80, 0, prefix="位移：", suffix='mm')
         self.spin_m_vel = self._create_custom_spinbox(-20, 20, 10, prefix="速度: ", suffix=" mm/s")
@@ -161,7 +159,24 @@ class LqtsDeviceTab(Nozzle):
         f_addr.addWidget(self.spin_m_pos, 1, 0)
         f_addr.addWidget(self.spin_m_vel, 1, 1)
         f_addr.addWidget(self.spin_m_acc, 1, 2)
+        v_addr_box.addLayout(f_addr)
+        v_addr_box.addWidget(self.create_status_lamp_row(self.lamp_motor))
         left_layout.addWidget(g_addr)
+
+        g_master = self.create_group_box("5. 总控")
+        self.lamp_master = self.create_status_lamp()
+        v_master_box = QVBoxLayout(g_master)
+        l_master = QHBoxLayout()
+        self.btn_home = AnimatedButton("⌂ 一键归中","#1E1E1E","#505050")
+        self.btn_home.clicked.connect(self.send_home_command)
+        self.btn_motion_ctrl = AnimatedButton("⟳ 循环运动","#1E1E1E","#505050")
+        self.btn_motion_ctrl.setCheckable(True)   # 切换式：启动/关闭循环运动
+        self.btn_motion_ctrl.toggled.connect(self.send_motion_ctrl_command)
+        l_master.addWidget(self.btn_home)
+        l_master.addWidget(self.btn_motion_ctrl)
+        v_master_box.addLayout(l_master)
+        v_master_box.addWidget(self.create_status_lamp_row(self.lamp_master))
+        left_layout.addWidget(g_master)
 
         left_layout.addStretch()
 
@@ -212,35 +227,14 @@ class LqtsDeviceTab(Nozzle):
         tab_bend = QWidget()
         v_bend = QVBoxLayout(tab_bend)
 
-        # --- 第一行：目标弯曲角度 + 当前弯曲角度 ---
-        hbox_angles = QHBoxLayout()
+        # --- 进度条卡片：偏转角度 / 截面面积缩放比 ---
+        self.angle_progress_frame, self.angle_progress, self.angle_progress_val = \
+            self.create_progress_card("偏转角度", "deg", "#D13438")
+        v_bend.addWidget(self.angle_progress_frame)
 
-        self.target_angle_card, self.target_angle_val = self.create_flat_card(
-            "目标弯曲角度(deg)", "0.00", "#D13438"
-        )
-        hbox_angles.addWidget(self.target_angle_card)
-
-        self.current_angle_card, self.current_angle_val = self.create_flat_card(
-            "当前弯曲角度(deg)", "0.00", "#D13438"
-        )
-        hbox_angles.addWidget(self.current_angle_card)
-
-        v_bend.addLayout(hbox_angles)
-
-        # --- 第二行：目标喷嘴面积 + 当前喷嘴面积 ---
-        hbox_area = QHBoxLayout()
-
-        self.target_area_card, self.target_area_val = self.create_flat_card(
-            "目标截面面积缩放比(%)", "0.00", "#107C10"
-        )
-        hbox_area.addWidget(self.target_area_card)
-
-        self.current_area_card, self.current_area_val = self.create_flat_card(
-            "当前截面面积缩放比(%)", "0.00", "#107C10"
-        )
-        hbox_area.addWidget(self.current_area_card)
-
-        v_bend.addLayout(hbox_area)
+        self.area_progress_frame, self.area_progress, self.area_progress_val = \
+            self.create_progress_card("截面面积缩放比", "%", "#107C10")
+        v_bend.addWidget(self.area_progress_frame)
 
         self.tabs.addTab(tab_bend, "🔧 LQTS喷管运动数据监控")
 
@@ -396,6 +390,7 @@ class LqtsDeviceTab(Nozzle):
     def sys_close(self):
         self.is_started = False
         self.closed_loop_enabled = False   # 停止闭环
+        self._force_cycle_motion_off()     # 关闭循环运动状态
         self.send_cmd(0x00, "失能", "关闭LQTS喷管", is_motor=True)
 
     def sys_start(self):
@@ -423,8 +418,23 @@ class LqtsDeviceTab(Nozzle):
         self.is_started = False
         self.closed_loop_enabled = False   # 停止闭环
 
+        # 紧急停止时强制关闭循环运动
+        self._force_cycle_motion_off()
+
         # 发送紧急停止命令
         self.send_cmd(0x02, "紧急停止", "LQTS紧急停止按钮", is_motor=True)
+
+    def _force_cycle_motion_off(self):
+        """强制将循环运动按钮复位为关闭态（紧急停止/系统关闭时调用）"""
+        if hasattr(self, 'btn_cycle_motion') or hasattr(self, 'btn_motion_ctrl'):
+            btn = getattr(self, 'btn_cycle_motion', None) or self.btn_motion_ctrl
+            if btn.isChecked():
+                btn.blockSignals(True)
+                btn.setChecked(False)
+                btn.setText("⟳ 循环运动")
+                btn.set_normal_color("#1E1E1E")
+                btn.set_hover_color("#505050")
+                btn.blockSignals(False)
 
     def get_error_disable_buttons(self):
         return [self.btn_stop, self.btn_home, self.btn_motion_ctrl, self.btn_m_next, self.btn_m_prev,
@@ -492,20 +502,52 @@ class LqtsDeviceTab(Nozzle):
             for dist in distances:
                 data += struct.pack('>H', dist)
             self.send_cmd(0x04, "一键归中", "所有电机距离复位为0", data, is_motor=True)
-            # 喷管目标弯曲角度置 0
+            # 喷管目标偏转角度置 0
             self.target_bend_angle = 0
         except Exception as e:
             error_msg = f"发送一键归中命令失败: {str(e)}"
             QMessageBox.critical(self, "错误", error_msg)
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
 
-    def send_motion_ctrl_command(self):
-        try:
-            self.send_cmd(0x05, "运动控制", "发送运动控制指令")
-        except Exception as e:
-            error_msg = f"发送运动控制命令失败: {str(e)}"
-            QMessageBox.critical(self, "错误", error_msg)
+    def _send_cycle_motion_frame(self, opened):
+        """构建并发送循环运动帧：AA 05 00(启动) / AA 05 01(关闭) + 校验和"""
+        frame = bytearray([0xAA, 0x05, 0x00 if opened else 0x01])
+        frame.append(sum(frame) & 0xFF)
+        self.worker.send_data(bytes(frame))
+        action = "循环运动启动" if opened else "循环运动关闭"
+        detail = '启动循环运动' if opened else '关闭循环运动'
+        GlobalHistory.add_record(self.port_name, action, detail, bytes(frame).hex().upper())
+        self.logger(f"📤 {action} -> {detail}", raw_data=bytes(frame), port=self.port_name)
+
+    def send_motion_ctrl_command(self, opened):
+        """循环运动启动/关闭切换：true->AA 05 00(启动), false->AA 05 01(关闭)"""
+        if not self.is_started:
+            # 未启动系统时拒绝，并复位按钮状态
+            btn = self.btn_motion_ctrl
+            btn.blockSignals(True)
+            btn.setChecked(False)
+            btn.setText("⟳ 循环运动")
+            btn.set_normal_color("#1E1E1E")
+            btn.set_hover_color("#505050")
+            btn.blockSignals(False)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+            error_msg = "请先点击启动控制系统"
+            QMessageBox.warning(self, "错误", error_msg)
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
+            return
+        if opened:
+            self.btn_motion_ctrl.setText("⏹ 关闭循环运动")
+            self.btn_motion_ctrl.set_normal_color("#D13438")
+            self.btn_motion_ctrl.set_hover_color("#6B1418")
+            self._send_cycle_motion_frame(True)
+        else:
+            self.btn_motion_ctrl.setText("⟳ 循环运动")
+            self.btn_motion_ctrl.set_normal_color("#1E1E1E")
+            self.btn_motion_ctrl.set_hover_color("#505050")
+            self._send_cycle_motion_frame(False)
+        self.btn_motion_ctrl.style().unpolish(self.btn_motion_ctrl)
+        self.btn_motion_ctrl.style().polish(self.btn_motion_ctrl)
 
     def send_scale_command(self):
         if not self.is_started:
@@ -534,7 +576,7 @@ class LqtsDeviceTab(Nozzle):
 
     def send_bend_command(self, angle_deg=None, log_enabled=True):
         """
-        发送弯曲命令（开环或闭环均可调用）
+        发送角度偏转命令（开环或闭环均可调用）
         :param angle_deg: 目标角度（度），若为 None 则从 spin_bend 取值
         :param log_enabled: 是否记录日志（闭环控制时可设为 False）
         """
@@ -544,7 +586,7 @@ class LqtsDeviceTab(Nozzle):
             return
         if self.num_m == 0:
             if log_enabled:
-                QMessageBox.warning(self, "错误", "当前没有可用的电机设备，无法进行弯曲")
+                QMessageBox.warning(self, "错误", "当前没有可用的电机设备，无法进行角度偏转")
             return
 
         # 确定目标角度
@@ -563,17 +605,17 @@ class LqtsDeviceTab(Nozzle):
         special_addr = 0xFE
         data = struct.pack('>BBBH', count, special_addr, direction, angle)
 
-        action = "喷管弯曲"
+        action = "喷管角度偏转"
         detail = f"方向:{'正' if direction == 0 else '负'}, 角度:{angle/100}度"
         self.send_cmd(0x06, action, detail, data, is_motor=True)
 
     def send_closed_loop_bend_command(self):
-        """启动/停止闭环弯曲控制"""
+        """启动/停止闭环角度偏转控制"""
         if not self.is_started:
             QMessageBox.warning(self, "错误", "请先点击启动控制系统")
             return
         if self.num_m == 0 or self.num_s == 0:
-            QMessageBox.warning(self, "错误", "需要至少一个电机和一个 IMU 才能进行闭环弯曲控制")
+            QMessageBox.warning(self, "错误", "需要至少一个电机和一个 IMU 才能进行闭环角度偏转控制")
             return
 
         if not self.closed_loop_enabled:
@@ -582,15 +624,15 @@ class LqtsDeviceTab(Nozzle):
             self.pid.reset()
             self.last_sent_angle = None          # 重置记录
             self.closed_loop_enabled = True
-            self.btn_closed_bend.setText("⏹ 停止闭环弯曲")
+            self.btn_closed_bend.setText("⏹ 停止闭环角度偏转")
             self.btn_closed_bend.set_normal_color("#D13438")
-            self.logger(f"🔄 启动闭环弯曲控制，目标角度={self.closed_loop_target_angle}°", port=self.port_name)
+            self.logger(f"🔄 启动闭环角度偏转控制，目标角度={self.closed_loop_target_angle}°", port=self.port_name)
         else:
             # 停止闭环控制
             self.closed_loop_enabled = False
-            self.btn_closed_bend.setText("闭环弯曲")
+            self.btn_closed_bend.setText("闭环角度偏转")
             self.btn_closed_bend.set_normal_color("#FF8C00")
-            self.logger("⏹ 停止闭环弯曲控制", port=self.port_name)
+            self.logger("⏹ 停止闭环角度偏转控制", port=self.port_name)
 
     def closed_loop_control(self):
         if not self.closed_loop_enabled or not self.is_started:
@@ -609,7 +651,7 @@ class LqtsDeviceTab(Nozzle):
             if abs(target_angle - self.last_sent_angle) < self.angle_deadband:
                 return
 
-        # 发送弯曲命令（不记录日志）
+        # 发送角度偏转命令（不记录日志）
         self.send_bend_command(angle_deg=target_angle, log_enabled=False)
         self.last_sent_angle = target_angle
 
@@ -645,7 +687,7 @@ class LqtsDeviceTab(Nozzle):
 
             # 3. 更新喷管参数
             if self.num_s > 0:
-                # 假设第一个 IMU 的 pitch 角度代表当前弯曲角度
+                # 假设第一个 IMU 的 pitch 角度代表当前偏转角度
                 self.current_bend_angle = self.sensor_data[0][0]
             else:
                 self.current_bend_angle = 0.0
@@ -662,7 +704,14 @@ class LqtsDeviceTab(Nozzle):
                 * 100
             )
 
-            # 4. 刷新界面
+            # 4. 驱动控制分组三态提示灯（用变化的当前值判定运行状态）
+            self.lamp_bend.feed_value(self.filtered_bend_angle)
+            self.lamp_shrink.feed_value(self.current_area_change)
+            motor_pos = self.motor_data[0][0] if self.motor_data else 0.0
+            self.lamp_motor.feed_value(motor_pos)
+            self.lamp_master.feed_value(motor_pos)
+
+            # 5. 刷新界面
             self.update_ui()
 
     def update_ui(self):
@@ -717,14 +766,12 @@ class LqtsDeviceTab(Nozzle):
                     self.motor_status_ball.setStyleSheet("color: #D13438; font-size: 13pt;")
                 else:
                     self.motor_status_ball.setStyleSheet("color: #107C10; font-size: 13pt;")
-        if hasattr(self, 'target_angle_val'):
-            self.target_angle_val.setText(f"{self.target_bend_angle:.2f}")
-        if hasattr(self, 'current_angle_val'):
-            self.current_angle_val.setText(f"{self.current_bend_angle:.2f}")
-        if hasattr(self, 'target_area_val'):
-            self.target_area_val.setText(f"{self.target_area_change:.2f}")
-        if hasattr(self, 'current_area_val'):
-            self.current_area_val.setText(f"{self.current_area_change:.2f}")
+        if hasattr(self, 'angle_progress'):
+            self.set_progress_value(self.angle_progress, self.angle_progress_val,
+                                    self.current_bend_angle, self.target_bend_angle)
+        if hasattr(self, 'area_progress'):
+            self.set_progress_value(self.area_progress, self.area_progress_val,
+                                    self.current_area_change, self.target_area_change)
 
     def update_motor_status_ball(self, idx=None):
         if idx is None:
@@ -747,7 +794,7 @@ class LqtsDeviceTab(Nozzle):
         # 计算相对时间（秒，从 0 开始）
         current_time_sec = time.time() - self.start_time
 
-        # 弯曲角度
+        # 角度偏转
         self.hist_bend_time.append(current_time_sec)
         self.hist_bend_target.append(self.target_bend_angle)
         self.hist_bend_current.append(self.current_bend_angle)

@@ -25,6 +25,7 @@ class LyzDeviceTab(Nozzle):
     SPINBOX_BUTTON_SIZE = 44
     SPINBOX_FONT_SIZE = "14pt"
     SPINBOX_BUTTON_FONT_SIZE = "16pt"
+    DEFLECTION_SLIDER_SEND_MS = 100   # 拖动偏航滑杆时指令发送间隔(ms)，降低发送频率
     GROUPBOX_STYLE = (
         "QGroupBox { font-size: 14pt; font-weight: bold; border: 3px solid white; "
         "border-radius: 5px; margin-top: 15px; padding: 8px; }"
@@ -48,13 +49,15 @@ class LyzDeviceTab(Nozzle):
         self.current_area_change = 100.0
         self.target_bend_angle = 0.0
         self.target_area_change = 100.0
+        self.current_theta = 0.0        # 电机旋转角度（反推/偏转控制进度条用）
+        self.theta_target = 0.0         # theta 目标：零位 0 / 极限 ±45
 
         self.hist_bend_time = []       # 时间列表
-        self.hist_bend_target = []     # 目标偏转角度列表
-        self.hist_bend_current = []    # 当前偏转角度列表
+        self.hist_bend_target = []     # 目标偏航角度列表
+        self.hist_bend_current = []    # 当前偏航角度列表
         self.hist_area_target = []     # 目标截面面积变化列表
         self.hist_area_current = []    # 当前截面面积变化列表
-        self.bend_graph_window = None  # 偏转曲线窗口实例
+        self.bend_graph_window = None  # 偏航曲线窗口实例
         self.bend_graph_controller = None
         self._last_bend_graph_update = 0.0
         self.bend_graph_update_interval = 0.1  # 曲线窗口刷新间隔，避免 10ms 重绘导致卡顿
@@ -70,6 +73,15 @@ class LyzDeviceTab(Nozzle):
         self.data_filter = DataFilter(window_size=3)
         self.filtered_bend_angle = 0.0
         self.angle_filter_alpha = 0.3   # 滤波系数
+
+        # 偏航滑杆指令节流：拖动时按固定间隔发送最新值，避免高频刷帧
+        self._deflection_send_pending = False
+        self._deflection_send_timer = QTimer()
+        self._deflection_send_timer.setSingleShot(True)
+        self._deflection_send_timer.setInterval(self.DEFLECTION_SLIDER_SEND_MS)
+        self._deflection_send_timer.timeout.connect(
+            self._on_deflection_throttled_send
+        )
 
     def _set_button_font(self, button, point_size=12):
         font = button.font()
@@ -117,6 +129,7 @@ class LyzDeviceTab(Nozzle):
         left_layout.addWidget(g_power)
 
         g_quick = self.create_group_box("2. 反推控制")
+        self.lamp_reverse = self.create_status_lamp()
         l_quick = QVBoxLayout(g_quick)
         self.btn_motion_ctrl = AnimatedButton("闭合", "#1E1E1E", "#505050")
         self.btn_motion_ctrl.clicked.connect(self.send_motion_ctrl_command)
@@ -126,29 +139,33 @@ class LyzDeviceTab(Nozzle):
         l_home_row.addWidget(self.btn_motion_ctrl)
         l_home_row.addWidget(self.btn_home)
         l_quick.addLayout(l_home_row)
+        l_quick.addWidget(self.create_status_lamp_row(self.lamp_reverse))
         left_layout.addWidget(g_quick)
 
-        g_deflection = self.create_group_box("3. 偏转控制")
+        g_deflection = self.create_group_box("3. 偏航控制")
+        self.lamp_deflection = self.create_status_lamp()
         l_deflection = QVBoxLayout(g_deflection)
         row_deflection = QHBoxLayout()
-        self.spin_deflection = self._create_custom_spinbox(-12, 12, 0, prefix="偏转角度: ", suffix="°")
-        self.btn_deflection = AnimatedButton("偏转角度", "#00BCD4", "#505050")
+        self.spin_deflection = self._create_custom_spinbox(-4, 4, 0, prefix="偏航角度: ", suffix="°")
+        self.btn_deflection = AnimatedButton("偏航角度", "#00BCD4", "#505050")
         self._set_button_font(self.btn_deflection)
         self.btn_deflection.clicked.connect(lambda: self.send_deflection_command())
         row_deflection.addWidget(self.spin_deflection)
         row_deflection.addWidget(self.btn_deflection)
         l_deflection.addLayout(row_deflection)
-        # 滑杆（0.1° 精度，范围 -12° ~ 12°）
+        # 滑杆（0.1° 精度，范围 -4° ~ 4°）
         self.slider_deflection = QSlider(Qt.Horizontal)
-        self.slider_deflection.setRange(-120, 120)
+        self.slider_deflection.setRange(-40, 40)
         self.slider_deflection.setValue(0)
         self.slider_deflection.setTickPosition(QSlider.TicksBelow)
         self.slider_deflection.setTickInterval(100)
         self.slider_deflection.setStyleSheet(self.SLIDER_STYLE)
         l_deflection.addWidget(self.slider_deflection)
+        l_deflection.addWidget(self.create_status_lamp_row(self.lamp_deflection))
         left_layout.addWidget(g_deflection)
 
         g_section = self.create_group_box("4. 截面控制")
+        self.lamp_section = self.create_status_lamp()
         l_section = QVBoxLayout(g_section)
         row_section = QHBoxLayout()
         self.spin_section = self._create_custom_spinbox(0, 100, 100, prefix="截面面积变化: ", suffix="%")
@@ -165,13 +182,22 @@ class LyzDeviceTab(Nozzle):
         self.slider_section.setTickInterval(25)
         self.slider_section.setStyleSheet(self.SLIDER_STYLE)
         l_section.addWidget(self.slider_section)
+        l_section.addWidget(self.create_status_lamp_row(self.lamp_section))
         left_layout.addWidget(g_section)
 
         g_total = self.create_group_box("5. 总控")
-        l_total = QHBoxLayout(g_total)
+        self.lamp_total = self.create_status_lamp()
+        v_total = QVBoxLayout(g_total)
+        l_total = QHBoxLayout()
         self.btn_initial_state = AnimatedButton("初态复位", "#1E1E1E", "#505050")
         self.btn_initial_state.clicked.connect(self.send_initial_state_command)
+        self.btn_cycle_motion = AnimatedButton("⟳ 循环运动", "#1E1E1E", "#505050")
+        self.btn_cycle_motion.setCheckable(True)   # 切换式：启动/关闭循环运动
+        self.btn_cycle_motion.toggled.connect(self.send_cycle_motion_command)
         l_total.addWidget(self.btn_initial_state)
+        l_total.addWidget(self.btn_cycle_motion)
+        v_total.addLayout(l_total)
+        v_total.addWidget(self.create_status_lamp_row(self.lamp_total))
         left_layout.addWidget(g_total)
         left_layout.addStretch()
 
@@ -185,35 +211,18 @@ class LyzDeviceTab(Nozzle):
         tab_bend = QWidget()
         v_bend = QVBoxLayout(tab_bend)
 
-        # --- 第一行：目标偏转角度 + 当前偏转角度 ---
-        hbox_angles = QHBoxLayout()
+        # --- 进度条卡片：偏转控制(theta) / 偏航角度 / 截面面积 ---
+        self.theta_progress_frame, self.theta_progress, self.theta_progress_val = \
+            self.create_progress_card("偏转控制(theta)", "deg", "#0078D7")
+        v_bend.addWidget(self.theta_progress_frame)
 
-        self.target_angle_card, self.target_angle_val = self.create_flat_card(
-            "目标偏转角度(deg)", "0.00", "#D13438"
-        )
-        hbox_angles.addWidget(self.target_angle_card)
+        self.angle_progress_frame, self.angle_progress, self.angle_progress_val = \
+            self.create_progress_card("偏航角度", "deg", "#D13438")
+        v_bend.addWidget(self.angle_progress_frame)
 
-        self.current_angle_card, self.current_angle_val = self.create_flat_card(
-            "当前偏转角度(deg)", "0.00", "#D13438"
-        )
-        hbox_angles.addWidget(self.current_angle_card)
-
-        v_bend.addLayout(hbox_angles)
-
-        # --- 第二行：目标截面面积 + 当前截面面积 ---
-        hbox_area = QHBoxLayout()
-
-        self.target_area_card, self.target_area_val = self.create_flat_card(
-            "目标截面面积变化(%)", "0.00", "#107C10"
-        )
-        hbox_area.addWidget(self.target_area_card)
-
-        self.current_area_card, self.current_area_val = self.create_flat_card(
-            "当前截面面积变化(%)", "0.00", "#107C10"
-        )
-        hbox_area.addWidget(self.current_area_card)
-
-        v_bend.addLayout(hbox_area)
+        self.area_progress_frame, self.area_progress, self.area_progress_val = \
+            self.create_progress_card("截面面积变化", "%", "#107C10")
+        v_bend.addWidget(self.area_progress_frame)
 
         self.tabs.addTab(tab_bend, "🔧 LYZ喷管运动数据监控")
 
@@ -236,19 +245,35 @@ class LyzDeviceTab(Nozzle):
         self.slider_deflection.valueChanged.connect(self._on_deflection_slider_changed)
         self.slider_section.valueChanged.connect(self._on_section_slider_changed)
         # 滑杆松手时记录最终指令日志
-        self.slider_deflection.sliderReleased.connect(self.send_deflection_command)
+        self.slider_deflection.sliderReleased.connect(self._on_deflection_slider_released)
         self.slider_section.sliderReleased.connect(self.send_section_command)
         # 输入框值变化 -> 更新滑杆（输入/加减按钮时）
         self.spin_deflection.spin.valueChanged.connect(self._on_deflection_spin_changed)
         self.spin_section.spin.valueChanged.connect(self._on_section_spin_changed)
 
     def _on_deflection_slider_changed(self, value):
-        """滑杆拖动 -> 同步输入框并连续发送指令，拖动中不记录日志"""
+        """滑杆拖动 -> 同步输入框；拖动中按节流间隔发送指令，不记录日志"""
         self.spin_deflection.spin.blockSignals(True)
         self.spin_deflection.spin.setValue(value / 10.0)
         self.spin_deflection.spin.blockSignals(False)
         if self.slider_deflection.isSliderDown():
-            self.send_deflection_command(log_enabled=False)
+            # 记录最新值，由定时器按固定间隔发送，避免拖动时高频刷指令
+            self._deflection_send_pending = True
+            if not self._deflection_send_timer.isActive():
+                self._deflection_send_timer.start()
+
+    def _on_deflection_throttled_send(self):
+        """节流定时器触发：发送拖动期间最新的偏航角度"""
+        if not self._deflection_send_pending:
+            return
+        self._deflection_send_pending = False
+        self.send_deflection_command(log_enabled=False)
+
+    def _on_deflection_slider_released(self):
+        """滑杆松手：停止节流并发送最终值，记录指令日志"""
+        self._deflection_send_timer.stop()
+        self._deflection_send_pending = False
+        self.send_deflection_command(log_enabled=True)
 
     def _on_section_slider_changed(self, value):
         """滑杆拖动 -> 同步输入框并连续发送指令，拖动中不记录日志"""
@@ -299,6 +324,7 @@ class LyzDeviceTab(Nozzle):
 
     def sys_close(self):
         self.is_started = False
+        self._force_cycle_motion_off()   # 关闭循环运动状态
         self.send_cmd(0x00, "失能", "关闭LYZ喷管", is_motor=True)
 
     def sys_start(self):
@@ -325,12 +351,28 @@ class LyzDeviceTab(Nozzle):
 
         self.is_started = False
 
+        # 紧急停止时强制关闭循环运动
+        self._force_cycle_motion_off()
+
         # 发送紧急停止命令
         self.send_cmd(0x02, "紧急停止", "LYZ紧急停止按钮", is_motor=True)
 
+    def _force_cycle_motion_off(self):
+        """强制将循环运动按钮复位为关闭态（紧急停止/系统关闭时调用）"""
+        if hasattr(self, 'btn_cycle_motion') or hasattr(self, 'btn_motion_ctrl'):
+            btn = getattr(self, 'btn_cycle_motion', None) or self.btn_motion_ctrl
+            if btn.isChecked():
+                btn.blockSignals(True)
+                btn.setChecked(False)
+                btn.setText("⟳ 循环运动")
+                btn.set_normal_color("#1E1E1E")
+                btn.set_hover_color("#505050")
+                btn.blockSignals(False)
+
     def get_error_disable_buttons(self):
         return [self.btn_stop, self.btn_home, self.btn_motion_ctrl,
-                self.btn_deflection, self.btn_section, self.btn_initial_state]
+                self.btn_deflection, self.btn_section, self.btn_initial_state,
+                self.btn_cycle_motion]
 
     def send_home_command(self):
         self.send_reverse_thrust_command(opened=False)
@@ -380,7 +422,7 @@ class LyzDeviceTab(Nozzle):
             frame.append(sum(frame) & 0xFF)
             frame = bytes(frame)
             self.worker.send_data(frame)
-            GlobalHistory.add_record(self.port_name, "初态复位", "偏转角度=0°, 截面面积变化=100%, 执行器位移复位为0", frame.hex().upper())
+            GlobalHistory.add_record(self.port_name, "初态复位", "偏航角度=0°, 截面面积变化=100%, 执行器位移复位为0", frame.hex().upper())
             self.logger("📤 初态复位 -> AA 05 00 [校验]", raw_data=frame, port=self.port_name)
             self.update_ui()
         except serial.SerialException as e:
@@ -394,6 +436,46 @@ class LyzDeviceTab(Nozzle):
 
     def send_motion_ctrl_command(self):
         self.send_reverse_thrust_command(opened=True)
+
+    def send_cycle_motion_command(self, opened):
+        """循环运动启动/关闭切换：true->AA 06 00(启动), false->AA 06 01(关闭)"""
+        if not self.is_started:
+            # 未启动系统时拒绝，并复位按钮状态
+            btn = self.btn_cycle_motion
+            btn.blockSignals(True)
+            btn.setChecked(False)
+            btn.setText("⟳ 循环运动")
+            btn.set_normal_color("#1E1E1E")
+            btn.set_hover_color("#505050")
+            btn.blockSignals(False)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+            error_msg = "请先点击启动控制系统"
+            QMessageBox.warning(self, "错误", error_msg)
+            self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
+            return
+        if opened:
+            self.btn_cycle_motion.setText("⏹ 关闭循环运动")
+            self.btn_cycle_motion.set_normal_color("#D13438")
+            self.btn_cycle_motion.set_hover_color("#6B1418")
+            self._send_cycle_motion_frame(True)
+        else:
+            self.btn_cycle_motion.setText("⟳ 循环运动")
+            self.btn_cycle_motion.set_normal_color("#1E1E1E")
+            self.btn_cycle_motion.set_hover_color("#505050")
+            self._send_cycle_motion_frame(False)
+        self.btn_cycle_motion.style().unpolish(self.btn_cycle_motion)
+        self.btn_cycle_motion.style().polish(self.btn_cycle_motion)
+
+    def _send_cycle_motion_frame(self, opened):
+        """构建并发送循环运动帧：AA 06 00(启动) / AA 06 01(关闭) + 校验和"""
+        frame = bytearray([0xAA, 0x06, 0x00 if opened else 0x01])
+        frame.append(sum(frame) & 0xFF)
+        self.worker.send_data(bytes(frame))
+        action = "循环运动启动" if opened else "循环运动关闭"
+        detail = '启动' if opened else '关闭'
+        GlobalHistory.add_record(self.port_name, action, detail, bytes(frame).hex().upper())
+        self.logger(f"📤 {action} -> {detail}", raw_data=bytes(frame), port=self.port_name)
 
     def _build_param_frame(self, direction, special_addr, value):
         frame = bytearray([0xAA, 0x03, 0x04, direction, special_addr])
@@ -418,16 +500,17 @@ class LyzDeviceTab(Nozzle):
 
         try:
             self.target_area_change = self.spin_section.spin.value()
-            # 面积变化百分比 → 目标出口面积 → 解算 Sc1 → 相对行程 Sc1-130 (mm)
+            # 面积变化百分比 → 目标出口面积 → 解算 Sc1 → 相对行程 Sc1-SC1_MIN (mm)
             sc1 = kinematics.percentage_to_sc1(self.target_area_change)
             displacement = sc1 - kinematics.SC1_MIN
             value = int(round(displacement * 100))   # 厘mm，与电机位移指令单位一致
             direction = 0
-            # 低于物理下限时执行器饱和在相对位移 70mm，给出提示
+            # 低于物理下限时执行器饱和在最大相对位移，给出提示
             if self.target_area_change < kinematics.MIN_EXIT_AREA / kinematics.MAX_EXIT_AREA * 100:
                 self.logger(f"⚠️ 面积变化 {self.target_area_change:.1f}% 低于物理下限 "
                             f"({kinematics.MIN_EXIT_AREA / kinematics.MAX_EXIT_AREA * 100:.2f}%)，"
-                            f"执行器饱和在相对位移 70.00mm", level="WARNING", port=self.port_name)
+                            f"执行器饱和在相对位移 {kinematics.SC1_MAX - kinematics.SC1_MIN:.2f}mm",
+                            level="WARNING", port=self.port_name)
             detail = (f"方向:正, 面积变化={self.target_area_change:.1f}% → "
                       f"Sc1={sc1:.2f}mm → 位移={displacement:.2f}mm")
             self._send_param_frame("截面面积变化", detail, direction, 0xFF, value, log_enabled=log_enabled)
@@ -446,7 +529,7 @@ class LyzDeviceTab(Nozzle):
 
     def send_deflection_command(self, angle_deg=None, log_enabled=True):
         """
-        发送偏转命令。
+        发送偏航命令。
         :param angle_deg: 目标角度（度），若为 None 则从 spin_deflection 取值
         :param log_enabled: 是否显示交互提示
         """
@@ -462,11 +545,14 @@ class LyzDeviceTab(Nozzle):
 
         self.target_bend_angle = target_angle
 
+        # theta 目标随偏转方向：非零偏转 -> 极限 ±45°，零位 -> 0°
+        self.theta_target = 45.0 if target_angle > 0 else (-45.0 if target_angle < 0 else 0.0)
+
         direction = 0 if target_angle >= 0 else 1
         angle = abs(int(target_angle * 100))   # 转为整数（0.01度单位）
-        action = "喷管偏转"
+        action = "喷管偏航"
         direction_text = "正" if direction == 0 else "负"
-        detail = f"方向:{direction_text}, 偏转角度:{angle/100}度"
+        detail = f"方向:{direction_text}, 偏航角度:{angle/100}度"
 
         try:
             self._send_param_frame(action, detail, direction, 0xFE, angle, log_enabled=log_enabled)
@@ -476,7 +562,7 @@ class LyzDeviceTab(Nozzle):
             QMessageBox.critical(self, "串口错误", error_msg)
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
         except Exception as e:
-            error_msg = f"发送偏转角度命令失败: {str(e)}"
+            error_msg = f"发送偏航角度命令失败: {str(e)}"
             QMessageBox.critical(self, "错误", error_msg)
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
 
@@ -508,9 +594,10 @@ class LyzDeviceTab(Nozzle):
             self.sensor_data = []
 
             # 2. 更新喷管参数
-            # 状态反馈帧末尾两个系统值分别为当前偏转角度、当前电推杆位移量
+            # 状态反馈帧末尾系统值依次为：电机旋转角度(current_theta)、当前电推杆位移量、当前偏航角度
             self.current_bend_angle = status.bend_angle
             self.current_actuator_displacement = status.actuator_displacement
+            self.current_theta = status.theta
             # 一阶低通滤波
             self.filtered_bend_angle = (
                 self.angle_filter_alpha * self.current_bend_angle
@@ -522,18 +609,25 @@ class LyzDeviceTab(Nozzle):
                 self.current_actuator_displacement
             )
 
-            # 4. 刷新界面
+            # 4. 驱动控制分组三态提示灯（用变化的当前值判定运行状态）
+            self.lamp_reverse.feed_value(status.theta)
+            self.lamp_deflection.feed_value(self.current_bend_angle)
+            self.lamp_section.feed_value(self.current_area_change)
+            self.lamp_total.feed_value(self.current_actuator_displacement)
+
+            # 5. 刷新界面
             self.update_ui()
 
     def update_ui(self):
-        if hasattr(self, 'target_angle_val'):
-            self.target_angle_val.setText(f"{self.target_bend_angle:.2f}")
-        if hasattr(self, 'current_angle_val'):
-            self.current_angle_val.setText(f"{self.current_bend_angle:.2f}")
-        if hasattr(self, 'target_area_val'):
-            self.target_area_val.setText(f"{self.target_area_change:.2f}")
-        if hasattr(self, 'current_area_val'):
-            self.current_area_val.setText(f"{self.current_area_change:.2f}")
+        if hasattr(self, 'angle_progress'):
+            self.set_progress_value(self.angle_progress, self.angle_progress_val,
+                                    self.current_bend_angle, self.target_bend_angle)
+        if hasattr(self, 'area_progress'):
+            self.set_progress_value(self.area_progress, self.area_progress_val,
+                                    self.current_area_change, self.target_area_change)
+        if hasattr(self, 'theta_progress'):
+            self.set_progress_value(self.theta_progress, self.theta_progress_val,
+                                    self.current_theta, self.theta_target)
 
     def update_motor_status_ball(self, idx=None):
         pass
@@ -551,7 +645,7 @@ class LyzDeviceTab(Nozzle):
         # 计算相对时间（秒，从 0 开始）
         current_time_sec = time.time() - self.start_time
 
-        # 偏转角度
+        # 偏航角度
         self.hist_bend_time.append(current_time_sec)
         self.hist_bend_target.append(self.target_bend_angle)
         self.hist_bend_current.append(self.current_bend_angle)
@@ -587,7 +681,7 @@ class LyzDeviceTab(Nozzle):
 
     #----------辅助函数----------------#
     def refresh_bend_graph(self):
-        """用最近 20 秒数据刷新 LYZ 偏转/面积曲线窗口，避免一次性加载过多点导致卡顿"""
+        """用最近 20 秒数据刷新 LYZ 偏航/面积曲线窗口，避免一次性加载过多点导致卡顿"""
         if not (self.bend_graph_window and self.bend_graph_window.isVisible() and self.hist_bend_time):
             return
         last_t = self.hist_bend_time[-1]

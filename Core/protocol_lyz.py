@@ -21,16 +21,18 @@ class SensorData:
 
 class DeviceStatus:
     __slots__ = ('num_motors', 'num_sensors', 'motors', 'sensors',
-                 'bend_angle', 'actuator_displacement', 'sys_state')
+                 'bend_angle', 'actuator_displacement', 'theta', 'sys_state')
     def __init__(self, num_motors: int, num_sensors: int,
                  motors: List[MotorData], sensors: List[SensorData],
-                 bend_angle: float, actuator_displacement: float, sys_state: int):
+                 bend_angle: float, actuator_displacement: float,
+                 theta: float, sys_state: int):
         self.num_motors = num_motors
         self.num_sensors = num_sensors
         self.motors = motors
         self.sensors = sensors
         self.bend_angle = bend_angle
         self.actuator_displacement = actuator_displacement
+        self.theta = theta        # 电机旋转角度（反推控制，暂不用于界面展示）
         self.sys_state = sys_state
 
 # ===================== 滤波器 =====================
@@ -191,11 +193,14 @@ class ProtocolParser:
         sensors = []
         num_sensors = 0
 
-        current_s = current_phi = 0.0
+        current_theta = current_s = current_phi = 0.0
         sys_state = 0
-        # 帧尾：current_S int16 + current_phi int16 + state uint8
-        if offset + 5 > len(payload):
+        # 帧尾：current_theta int16 + current_S int16 + current_phi int16 + state uint8
+        # 注意：新增反推控制字段 current_theta（电机旋转角度），帧尾共 7 字节
+        if offset + 7 > len(payload):
             return None
+        current_theta = struct.unpack_from('>h', payload, offset)[0] / 100.0
+        offset += 2
         current_s = struct.unpack_from('>h', payload, offset)[0] / 100.0
         offset += 2
         current_phi = struct.unpack_from('>h', payload, offset)[0] / 100.0
@@ -225,5 +230,6 @@ class ProtocolParser:
             sensors=sensors,
             bend_angle=current_phi,
             actuator_displacement=current_s,
+            theta=current_theta,
             sys_state=sys_state
         )

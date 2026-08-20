@@ -83,6 +83,7 @@ class SwDeviceTab(Nozzle):
 
         # ---------- GroupBox 2: 偏转控制 ----------
         g_quick = self.create_group_box("2. 偏转控制")
+        self.lamp_bend = self.create_status_lamp()
         l_quick = QVBoxLayout(g_quick)
 
         # 向下偏转
@@ -107,12 +108,26 @@ class SwDeviceTab(Nozzle):
         l_bend2.addWidget(self.btn_bend2)
         l_quick.addLayout(l_bend2)
 
-        # 偏转复位
-        self.btn_home = AnimatedButton("⌂ 偏转复位", "#1E1E1E", "#505050")
-        self.btn_home.clicked.connect(self.send_home_command)
-        l_quick.addWidget(self.btn_home)
+        # 偏转复位（已移至 3. 总控）
+        l_quick.addWidget(self.create_status_lamp_row(self.lamp_bend))
 
         left_layout.addWidget(g_quick)
+
+        # ---------- GroupBox 3: 总控 ----------
+        g_master = self.create_group_box("3. 总控")
+        self.lamp_master = self.create_status_lamp()
+        v_master = QVBoxLayout(g_master)
+        l_master = QHBoxLayout()
+        self.btn_home = AnimatedButton("⌂ 偏转复位", "#1E1E1E", "#505050")
+        self.btn_home.clicked.connect(self.send_home_command)
+        self.btn_cycle_motion = AnimatedButton("⟳ 循环运动", "#1E1E1E", "#505050")
+        self.btn_cycle_motion.setCheckable(True)   # 切换式：启动/关闭循环运动
+        self.btn_cycle_motion.toggled.connect(self.send_cycle_motion_command)
+        l_master.addWidget(self.btn_home)
+        l_master.addWidget(self.btn_cycle_motion)
+        v_master.addLayout(l_master)
+        v_master.addWidget(self.create_status_lamp_row(self.lamp_master))
+        left_layout.addWidget(g_master)
         left_layout.addStretch()
 
         # ---------- 右侧看板：偏转数据监控 ----------
@@ -124,29 +139,14 @@ class SwDeviceTab(Nozzle):
         tab_bend = QWidget()
         v_bend = QVBoxLayout(tab_bend)
 
-        # 第一行：向下偏转（当前 + 目标）
-        hbox_seg1 = QHBoxLayout()
-        self.angle1_cur_card, self.angle1_cur_val = self.create_flat_card(
-            "向下当前偏转角(deg)", "0.00", "#D13438"
-        )
-        hbox_seg1.addWidget(self.angle1_cur_card)
-        self.angle1_tar_card, self.angle1_tar_val = self.create_flat_card(
-            "向下目标偏转角(deg)", "0.00", "#0078D7"
-        )
-        hbox_seg1.addWidget(self.angle1_tar_card)
-        v_bend.addLayout(hbox_seg1)
+        # --- 进度条卡片：向下偏转 / 向上偏转 ---
+        self.angle1_progress_frame, self.angle1_progress, self.angle1_progress_val = \
+            self.create_progress_card("向下偏转", "deg", "#D13438")
+        v_bend.addWidget(self.angle1_progress_frame)
 
-        # 第二行：向上偏转（当前 + 目标）
-        hbox_seg2 = QHBoxLayout()
-        self.angle2_cur_card, self.angle2_cur_val = self.create_flat_card(
-            "向上当前偏转角(deg)", "0.00", "#D13438"
-        )
-        hbox_seg2.addWidget(self.angle2_cur_card)
-        self.angle2_tar_card, self.angle2_tar_val = self.create_flat_card(
-            "向上目标偏转角(deg)", "0.00", "#0078D7"
-        )
-        hbox_seg2.addWidget(self.angle2_tar_card)
-        v_bend.addLayout(hbox_seg2)
+        self.angle2_progress_frame, self.angle2_progress, self.angle2_progress_val = \
+            self.create_progress_card("向上偏转", "deg", "#0078D7")
+        v_bend.addWidget(self.angle2_progress_frame)
 
         self.tabs.addTab(tab_bend, "🔧 偏转数据监控")
 
@@ -208,10 +208,51 @@ class SwDeviceTab(Nozzle):
             QMessageBox.critical(self, "错误", f"发送偏转复位命令失败: {str(e)}")
             self.logger(f"❌ 发送偏转复位命令失败: {str(e)}", level="ERROR", port=self.port_name)
 
+    def send_cycle_motion_command(self, opened):
+        """循环运动启动/关闭切换：true->AA 05 00(启动), false->AA 05 01(关闭)"""
+        if not self.is_started:
+            # 未启动系统时拒绝，并复位按钮状态
+            btn = self.btn_cycle_motion
+            btn.blockSignals(True)
+            btn.setChecked(False)
+            btn.setText("⟳ 循环运动")
+            btn.set_normal_color("#1E1E1E")
+            btn.set_hover_color("#505050")
+            btn.blockSignals(False)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+            error_msg = "请先点击启动控制系统"
+            QMessageBox.warning(self, "错误", error_msg)
+            self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
+            return
+        if opened:
+            self.btn_cycle_motion.setText("⏹ 关闭循环运动")
+            self.btn_cycle_motion.set_normal_color("#D13438")
+            self.btn_cycle_motion.set_hover_color("#6B1418")
+            self._send_cycle_motion_frame(True)
+        else:
+            self.btn_cycle_motion.setText("⟳ 循环运动")
+            self.btn_cycle_motion.set_normal_color("#1E1E1E")
+            self.btn_cycle_motion.set_hover_color("#505050")
+            self._send_cycle_motion_frame(False)
+        self.btn_cycle_motion.style().unpolish(self.btn_cycle_motion)
+        self.btn_cycle_motion.style().polish(self.btn_cycle_motion)
+
+    def _send_cycle_motion_frame(self, opened):
+        """构建并发送循环运动帧：AA 05 00(启动) / AA 05 01(关闭) + 校验和"""
+        frame = bytearray([0xAA, 0x05, 0x00 if opened else 0x01])
+        frame.append(sum(frame) & 0xFF)
+        self.worker.send_data(bytes(frame))
+        action = "循环运动启动" if opened else "循环运动关闭"
+        detail = '启动循环运动' if opened else '关闭循环运动'
+        GlobalHistory.add_record(self.port_name, action, detail, bytes(frame).hex().upper())
+        self.logger(f"📤 {action} -> {detail}", raw_data=bytes(frame), port=self.port_name)
+
     # ------------------ 系统控制 ------------------
 
     def sys_close(self):
         self.is_started = False
+        self._force_cycle_motion_off()   # 关闭循环运动状态
         self.send_cmd(0x00, "失能", "关闭SW喷管", is_motor=True)
 
     def sys_start(self):
@@ -231,10 +272,25 @@ class SwDeviceTab(Nozzle):
             self.btn_toggle.style().polish(self.btn_toggle)
             self.btn_toggle.blockSignals(False)
         self.is_started = False
+        # 紧急停止时强制关闭循环运动
+        self._force_cycle_motion_off()
         self.send_cmd(0x02, "紧急停止", "SW紧急停止按钮", is_motor=True)
 
+    def _force_cycle_motion_off(self):
+        """强制将循环运动按钮复位为关闭态（紧急停止/系统关闭时调用）"""
+        if hasattr(self, 'btn_cycle_motion') or hasattr(self, 'btn_motion_ctrl'):
+            btn = getattr(self, 'btn_cycle_motion', None) or self.btn_motion_ctrl
+            if btn.isChecked():
+                btn.blockSignals(True)
+                btn.setChecked(False)
+                btn.setText("⟳ 循环运动")
+                btn.set_normal_color("#1E1E1E")
+                btn.set_hover_color("#505050")
+                btn.blockSignals(False)
+
     def get_error_disable_buttons(self):
-        return [self.btn_stop, self.btn_home, self.btn_bend1, self.btn_bend2]
+        return [self.btn_stop, self.btn_home, self.btn_bend1, self.btn_bend2,
+                self.btn_cycle_motion]
 
     # ------------------ 数据解析 ------------------
 
@@ -287,17 +343,20 @@ class SwDeviceTab(Nozzle):
                 (1 - self.angle_filter_alpha) * self.filtered_bend_angle2
             self.current_bend_angle2 = self.filtered_bend_angle2
 
+            # 驱动控制分组三态提示灯（用变化的当前偏转量判定运行状态）
+            bend_magnitude = abs(self.current_bend_angle1) + abs(self.current_bend_angle2)
+            self.lamp_bend.feed_value(bend_magnitude)
+            self.lamp_master.feed_value(bend_magnitude)
+
             self.update_ui()
 
     def update_ui(self):
-        if hasattr(self, 'angle1_cur_val'):
-            self.angle1_cur_val.setText(f"{abs(self.current_bend_angle1):.2f}")
-        if hasattr(self, 'angle1_tar_val'):
-            self.angle1_tar_val.setText(f"{abs(self.spin_bend1.spin.value()):.2f}")
-        if hasattr(self, 'angle2_cur_val'):
-            self.angle2_cur_val.setText(f"{abs(self.current_bend_angle2):.2f}")
-        if hasattr(self, 'angle2_tar_val'):
-            self.angle2_tar_val.setText(f"{abs(self.spin_bend2.spin.value()):.2f}")
+        if hasattr(self, 'angle1_progress'):
+            self.set_progress_value(self.angle1_progress, self.angle1_progress_val,
+                                    abs(self.current_bend_angle1), abs(self.spin_bend1.spin.value()))
+        if hasattr(self, 'angle2_progress'):
+            self.set_progress_value(self.angle2_progress, self.angle2_progress_val,
+                                    abs(self.current_bend_angle2), abs(self.spin_bend2.spin.value()))
 
     # ------------------ 数据记录 ------------------
 

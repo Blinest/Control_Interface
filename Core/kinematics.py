@@ -41,7 +41,8 @@ l5 = GEOMETRY['l5']
 d = GEOMETRY['d']
 
 # ========== 驱动位移范围（mm） ==========
-SC1_MIN = 130.0
+# 100% 时驱动位移为 SC1_MIN，0%（饱和）时为 SC1_MAX
+SC1_MIN = 155.0
 SC1_MAX = 200.0
 
 # 约束方程求根区间（与原参考脚本 brentq 的括号一致）
@@ -159,7 +160,7 @@ def _build_tables():
 
 _SC1_TABLE, _AREA_TABLE = _build_tables()
 
-# 最大/最小出口截面面积（mm²），对应 Sc1 = 130 / 200
+# 最大/最小出口截面面积（mm²），对应 Sc1 = 155 / 200
 MAX_EXIT_AREA = _AREA_TABLE[0]
 MIN_EXIT_AREA = _AREA_TABLE[-1]
 
@@ -192,7 +193,7 @@ def percentage_to_sc1(pct):
     """截面面积变化百分比 (0~100) -> 驱动位移 Sc1 (mm)
 
     输入量 = 百分比 × 最大截面面积；输出为解算得到的位移量。
-    注意: 百分比低于物理下限约 1.996% 时，出口面积无法进一步减小，
+    注意: 百分比低于物理下限约 44.50% 时，出口面积无法进一步减小，
     输出收敛到 SC1_MAX = 200 mm（执行器饱和）。
     """
     target_area = pct / 100.0 * MAX_EXIT_AREA
@@ -203,7 +204,7 @@ def percentage_to_displacement(pct):
     """截面面积变化百分比 (0~100) -> 相对驱动位移 (mm)
 
     指令使用相对行程: displacement = Sc1 - SC1_MIN。
-    因此 100% 对应 0 mm，0%（饱和）对应 70 mm。
+    因此 100% 对应 0 mm，0%（饱和）对应 45 mm。
     """
     return percentage_to_sc1(pct) - SC1_MIN
 
@@ -228,7 +229,7 @@ def displacement_to_percentage(displacement):
 def selftest():
     """打印模型关键结果，用于验证与参考脚本一致"""
     print("=" * 50)
-    print(f"MAX_EXIT_AREA (Sc1=130): {MAX_EXIT_AREA:.4f} mm²")
+    print(f"MAX_EXIT_AREA (Sc1=155): {MAX_EXIT_AREA:.4f} mm²")
     print(f"MIN_EXIT_AREA (Sc1=200): {MIN_EXIT_AREA:.4f} mm²")
     print(f"Sc1 范围: [{SC1_MIN}, {SC1_MAX}] mm")
 

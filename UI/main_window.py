@@ -103,6 +103,7 @@ class MainWindow(QMainWindow):
         self.probes = {}
         self.device_kinds = {}
         self.auto_added_ports = set()
+        self.port_fail_cooldown = {}   # port -> 失败时刻 (time.monotonic())，防止 200ms 重试循环
         self.target_port = "COM3" if sys.platform == "win32" else "/dev/ttyCH341USB0"
 
         self.statusBar().showMessage("就绪")
@@ -373,6 +374,10 @@ class MainWindow(QMainWindow):
 
         for port in valid_ports:
             if port not in self.devices and port not in self.probes and port not in self.auto_added_ports:
+                # 失败冷却期内跳过自动重试，避免 200ms 弹窗循环
+                last_fail = self.port_fail_cooldown.get(port)
+                if last_fail and time.monotonic() - last_fail < 5.0:
+                    continue
                 self.connect_port(port)
                 self.auto_added_ports.add(port)
 
@@ -386,12 +391,13 @@ class MainWindow(QMainWindow):
         else:
             self.combo_ports.addItem("无可用串口")
 
-    def connect_port(self, port):
+    def connect_port(self, port, manual=False):
         if port in self.devices or port in self.probes:
             return
         probe = ProbeTab(port)
         probe.signal_detected.connect(lambda kind, frame, p=port: self._on_device_detected(p, kind, frame))
-        probe.signal_error.connect(lambda message, p=port: self._on_probe_error(p, message))
+        # manual: 手动添加失败时弹窗提示；自动探测失败只记日志
+        probe.signal_error.connect(lambda message, p=port, m=manual: self._on_probe_error(p, message, manual=m))
         self.probes[port] = probe
         self.tabs.addTab(probe, f"🔎 {port} - 界面加载中")
         self.tabs.setCurrentWidget(probe)
@@ -405,6 +411,7 @@ class MainWindow(QMainWindow):
             if tab_index >= 0:
                 self.tabs.removeTab(tab_index)
             probe.deleteLater()
+        self.port_fail_cooldown.pop(port, None)
 
         config = DEVICE_CONFIG.get(kind)
         if not config:
@@ -425,7 +432,7 @@ class MainWindow(QMainWindow):
 
         QTimer.singleShot(300, lambda: device_tab.parse_data(first_frame))
 
-    def _on_probe_error(self, port, message):
+    def _on_probe_error(self, port, message, manual=False):
         self.log(f"❌ 串口识别失败: {message}", level="ERROR", port=port)
         probe = self.probes.pop(port, None)
         if probe:
@@ -435,7 +442,12 @@ class MainWindow(QMainWindow):
                 self.tabs.removeTab(index)
             probe.deleteLater()
         self.auto_added_ports.discard(port)
-        QMessageBox.warning(self, "串口识别失败", f"设备 {port} 无法识别或已断开：\n{message}")
+        # 记录失败时刻，进入冷却期，防止 200ms 自动重试弹窗循环
+        self.port_fail_cooldown[port] = time.monotonic()
+        if manual:
+            QMessageBox.warning(self, "串口识别失败", f"设备 {port} 无法识别或已断开：\n{message}")
+        else:
+            self.statusBar().showMessage(f"⚠️ {port} 识别失败，稍后自动重试", 3000)
 
     def add_device(self):
         port = self.combo_ports.currentText()
@@ -445,7 +457,7 @@ class MainWindow(QMainWindow):
         if port in self.devices or port in self.probes:
             QMessageBox.warning(self, "提示", f"设备 {port} 已经添加")
             return
-        self.connect_port(port)
+        self.connect_port(port, manual=True)
 
     def add_manual_device(self):
         port = self.manual_port_edit.text().strip()
@@ -458,7 +470,7 @@ class MainWindow(QMainWindow):
         if not self.port_exists(port):
             QMessageBox.warning(self, "错误", f"设备 {port} 不存在")
             return
-        self.connect_port(port)
+        self.connect_port(port, manual=True)
 
     def port_exists(self, port):
         try:
@@ -483,6 +495,7 @@ class MainWindow(QMainWindow):
             self.devices.pop(port_name, None)
             self.probes.pop(port_name, None)
             self.auto_added_ports.discard(port_name)
+            self.port_fail_cooldown.pop(port_name, None)
         self.device_kinds.pop(widget, None)
         self.tabs.removeTab(index)
         widget.deleteLater()

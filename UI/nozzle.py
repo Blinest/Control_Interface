@@ -3,10 +3,11 @@
 # ==========================================
 # Qt类
 import struct
+import time
 import serial
 from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QGroupBox,
                              QDoubleSpinBox, QPushButton, QMessageBox, QAbstractSpinBox,
-                             QSplitter, QSplitterHandle, QScrollArea)
+                             QSplitter, QSplitterHandle, QScrollArea, QProgressBar)
 from PyQt5.QtGui import QPainter, QColor
 from PyQt5.QtCore import Qt, QTimer
 
@@ -54,6 +55,96 @@ class TouchSplitter(QSplitter):
 
     def createHandle(self):
         return TouchSplitterHandle(self.orientation(), self)
+
+
+class ControlStatusLamp:
+    """控制分组三态提示灯状态机（待机 / 运行中 / 运行完成）
+
+    通过 feed_value 喂入最新「当前值」驱动状态：
+    - 当前值持续变化 -> 运行中（记录运行时长）
+    - 连续 done_frames 帧无变化 -> 运行完成（保留本次运行时长）
+    - 运行完成保持 done_hold_seconds 秒后自动回待机
+    tick 由 Nozzle.status_timer(200ms) 定时驱动。
+    """
+
+    STATE_IDLE, STATE_RUNNING, STATE_DONE = 0, 1, 2
+    IDLE_COLOR, RUNNING_COLOR, DONE_COLOR = "#9E9E9E", "#107C10", "#0078D7"
+
+    def __init__(self, change_threshold=0.02, done_frames=5, done_hold_seconds=1.0):
+        self.state = self.STATE_IDLE
+        self.last_value = None
+        self.change_threshold = change_threshold    # 判定「变化」的最小差值
+        self.done_frames = done_frames              # 连续无变化帧数 -> 视为完成
+        self.done_hold_seconds = done_hold_seconds  # 完成后保持时间（秒），默认 1s
+        self._static_frames = 0
+        self.run_start_time = None                  # 运行开始时刻（time.time）
+        self._done_at = None                        # 进入完成态的时刻
+        self.elapsed_seconds = 0.0                  # 最近一次运行时长（秒）
+
+        # UI：三灯 + 运行时间标签
+        self.lbl_idle = QLabel("● 待机")
+        self.lbl_running = QLabel("● 运行中")
+        self.lbl_done = QLabel("● 完成")
+        self.lbl_time = QLabel("⏱ 0.0s")
+        self._apply_colors()
+
+    def feed_value(self, value):
+        """喂入最新当前值，驱动状态机（每次收到状态帧调用）"""
+        if self.last_value is None:
+            self.last_value = value
+            return
+        delta = abs(value - self.last_value)
+        self.last_value = value
+        if delta > self.change_threshold:
+            self._static_frames = 0
+            if self.state != self.STATE_RUNNING:
+                self._set_state(self.STATE_RUNNING)
+        else:
+            if self.state == self.STATE_RUNNING:
+                self._static_frames += 1
+                if self._static_frames >= self.done_frames:
+                    self._set_state(self.STATE_DONE)
+
+    def tick(self):
+        """定时驱动：运行中刷新时长；完成后 1s 自动回待机"""
+        if self.state == self.STATE_RUNNING and self.run_start_time:
+            self.lbl_time.setText(f"⏱ {time.time() - self.run_start_time:.1f}s")
+        elif self.state == self.STATE_DONE:
+            if time.time() - self._done_at >= self.done_hold_seconds:
+                self._set_state(self.STATE_IDLE)
+
+    def _set_state(self, state):
+        self.state = state
+        if state == self.STATE_RUNNING:
+            if self.run_start_time is None:
+                self.run_start_time = time.time()
+        elif state == self.STATE_DONE:
+            if self.run_start_time is not None:
+                self.elapsed_seconds = time.time() - self.run_start_time
+            self.lbl_time.setText(f"⏱ {self.elapsed_seconds:.1f}s")
+            self._done_at = time.time()
+        else:  # IDLE
+            self.run_start_time = None
+            self._done_at = None
+            self.elapsed_seconds = 0.0
+            self.lbl_time.setText("⏱ 0.0s")
+        self._apply_colors()
+
+    def reset(self):
+        """强制回到待机态（系统关闭时调用）"""
+        self.last_value = None
+        self._static_frames = 0
+        self._set_state(self.STATE_IDLE)
+
+    def _apply_colors(self):
+        # 当前状态灯高亮粗体，其余灰暗
+        def style(color, active):
+            if active:
+                return f"color: {color}; font-size: 12pt; font-weight: bold; border: none;"
+            return "color: #C0C0C0; font-size: 12pt; border: none;"
+        self.lbl_idle.setStyleSheet(style(self.IDLE_COLOR, self.state == self.STATE_IDLE))
+        self.lbl_running.setStyleSheet(style(self.RUNNING_COLOR, self.state == self.STATE_RUNNING))
+        self.lbl_done.setStyleSheet(style(self.DONE_COLOR, self.state == self.STATE_DONE))
 
 
 class Nozzle(QWidget):
@@ -113,6 +204,18 @@ class Nozzle(QWidget):
         }
         QSlider::handle:horizontal:hover { background: #005A9E; }
     """
+    PROGRESS_STYLE = """
+        QProgressBar {
+            border: 2px solid #b0b0b0;
+            border-radius: 8px;
+            background: #e0e0e0;
+            min-height: 22px;
+        }
+        QProgressBar::chunk {
+            background: #006400;
+            border-radius: 6px;
+        }
+    """
     SCROLLBAR_STYLE = """
         QScrollBar:vertical {
             background: #e0e0e0;
@@ -160,6 +263,12 @@ class Nozzle(QWidget):
         self.history_timer = QTimer()
         self.history_timer.timeout.connect(self.record_history)
         self.history_timer.start(10)
+
+        # 控制分组三态提示灯：注册表 + 定时刷新定时器
+        self.status_lamps = []
+        self.status_timer = QTimer()
+        self.status_timer.timeout.connect(self._tick_status_lamps)
+        self.status_timer.start(200)
 
         # 曲线窗口实例
         self.bend_graph_window = None
@@ -232,6 +341,7 @@ class Nozzle(QWidget):
 
     def sys_close(self):
         self.is_started = False
+        self.reset_status_lamps()   # 系统关闭，全部提示灯回待机
         self.send_cmd(0x00, "失能", f"关闭{self.NOZZLE_NAME}喷管", is_motor=True)
 
     def sys_stop(self):
@@ -327,6 +437,42 @@ class Nozzle(QWidget):
         layout.addStretch()
         layout.addWidget(lbl_val)
         return frame, lbl_val
+
+    def create_progress_card(self, title, unit, color):
+        """创建"目标/当前"进度条卡片：进度条终点=目标值，进度=当前值
+
+        返回 (frame, progress_bar, lbl_val)；配合 set_progress_value 更新。
+        """
+        frame = QFrame()
+        frame.setStyleSheet("QFrame { background: #d9d9d6; border: 3px solid white; border-radius: 6px; }")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(8, 6, 8, 6)
+        header = QHBoxLayout()
+        header.addWidget(QLabel(f"{title} ({unit})", styleSheet=f"color: black; font-weight:bold; border:none; font-size:{self.CARD_TITLE_FONT_SIZE};"))
+        lbl_val = QLabel("0.00")
+        lbl_val.setStyleSheet(f"color: {color}; font-size: {self.CARD_VALUE_FONT_SIZE}; font-weight: bold; border: none;")
+        header.addStretch()
+        header.addWidget(lbl_val)
+        layout.addLayout(header)
+
+        progress = QProgressBar()
+        progress.setRange(0, 100)          # 默认 0~100，set_progress_value 动态调整
+        progress.setTextVisible(False)     # 数值由 lbl_val 显示
+        progress.setStyleSheet(self.PROGRESS_STYLE)
+        layout.addWidget(progress)
+        return frame, progress, lbl_val
+
+    def set_progress_value(self, progress, lbl_val, current, target):
+        """更新进度条：终点=目标值，进度=当前值。进度条始终从左向右填充"""
+        lbl_val.setText(f"{current:.2f}")
+        # 无论目标正负，进度条均从左向右：用 |目标| 定终点，|当前| 填进度
+        mag = abs(target)
+        progress.setRange(0, max(1, int(round(mag * 100))))
+        progress.setInvertedAppearance(False)
+        # 进度 = |当前值|，clamp 到 [0, |目标|]
+        value = max(min(abs(current), mag), 0)
+        progress.setValue(int(value * 100))
+
 
     def create_motor_card(self, title, color="#000"):
         """创建电机状态卡片（LQTS用）"""
@@ -512,6 +658,36 @@ class Nozzle(QWidget):
         group_box = QGroupBox(title)
         group_box.setStyleSheet(self.GROUPBOX_STYLE)
         return group_box
+
+    # ---------- 控制状态提示灯 ----------
+    def create_status_lamp(self, **kw):
+        """创建并注册一个三态提示灯，子类为每个控制 GroupBox 调用"""
+        lamp = ControlStatusLamp(**kw)
+        self.status_lamps.append(lamp)
+        return lamp
+
+    def create_status_lamp_row(self, lamp):
+        """创建三灯 + 运行时间的一行控件，用于 GroupBox 内布局"""
+        row = QWidget()
+        h = QHBoxLayout(row)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(8)
+        h.addWidget(lamp.lbl_idle)
+        h.addWidget(lamp.lbl_running)
+        h.addWidget(lamp.lbl_done)
+        h.addStretch()
+        h.addWidget(lamp.lbl_time)
+        return row
+
+    def reset_status_lamps(self):
+        """所有提示灯强制回到待机态"""
+        for lamp in self.status_lamps:
+            lamp.reset()
+
+    def _tick_status_lamps(self):
+        """定时刷新所有提示灯（运行时长 / 完成后回待机）"""
+        for lamp in self.status_lamps:
+            lamp.tick()
 
     def create_section_label(self, text):
         """创建控制区段标签"""
