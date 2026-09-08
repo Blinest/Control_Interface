@@ -4,12 +4,14 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox, QMenu
 
 # 自定义类
 from UI.graph_window_lqts import HistoryFileDialog
+from UI.nozzle import Nozzle
 
 
 # 工具类
 import os
 import csv
 import bisect
+import time
 import unicodedata
 import pyqtgraph as pg
 from datetime import datetime
@@ -25,6 +27,14 @@ class GraphController(QObject):
         self.vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='#FF0000', width=1, style=Qt.DashLine))
         self.ui.plot_widget.addItem(self.vline)
         self.vline.hide()
+
+        # 实时刷新节流（0.15s）：用于丢帧补刷的定时器与状态
+        self._refresh_interval = 0.15
+        self._last_refresh = 0.0
+        self._pending = False
+        self._refresh_timer = QTimer()
+        self._refresh_timer.timeout.connect(self._refresh_pending_data)
+        self._refresh_timer.start(int(self._refresh_interval * 1000))
 
         self.ui.plot_widget.scene().sigMouseClicked.connect(self._on_mouse_clicked)
         if not is_history_mode:
@@ -107,7 +117,7 @@ class GraphController(QObject):
             time_data = self._time_data
             data_matrix = self._data_matrix
         else:
-            # 若缓存为空，则从曲线对象中提取
+            # 若缓存为空，则从曲线对象中提取（每台设备当前两条曲线）
             if self.ui.curves and self.ui.curves[0][0].xData is not None:
                 time_data = self.ui.curves[0][0].xData
                 data_matrix = []
@@ -226,10 +236,26 @@ class GraphController(QObject):
 
     # ---------- 数据更新 ----------
     def update_multi_data(self, time_data, data_matrix):
+        """实时刷新曲线（节流 0.15s，避免 10ms 历史定时器下每次重绘拖垮界面）"""
         if not time_data or not data_matrix:
             return
+        # 无论是否节流都缓存最新数据，供丢帧补刷与 CSV 保存使用
         self._time_data = time_data
         self._data_matrix = data_matrix
+        now = time.time()
+        if now < self._last_refresh + self._refresh_interval:
+            self._pending = True   # 处于节流窗口，交由定时器补上最新一帧
+            return
+        self._draw_multi_data()
+
+    def _draw_multi_data(self):
+        """实际把缓存数据画到曲线上（位移/偏航X、速度/偏航Y；加速度/偏航Z 已移除）"""
+        time_data = self._time_data
+        data_matrix = self._data_matrix
+        if not time_data or not data_matrix:
+            return
+        self._last_refresh = time.time()
+        self._pending = False
 
         num_devices = len(data_matrix[0])
         if num_devices != len(self.ui.curves):
@@ -238,11 +264,14 @@ class GraphController(QObject):
         for i in range(min(len(self.ui.curves), num_devices)):
             x_vals = [step[i][0] if i < len(step) and len(step[i]) > 0 else 0.0 for step in data_matrix]
             y_vals = [step[i][1] if i < len(step) and len(step[i]) > 1 else 0.0 for step in data_matrix]
-            z_vals = [step[i][2] if i < len(step) and len(step[i]) > 2 else 0.0 for step in data_matrix]
             if len(time_data) == len(x_vals):
                 self.ui.curves[i][0].setData(time_data, x_vals)
                 self.ui.curves[i][1].setData(time_data, y_vals)
-                self.ui.curves[i][2].setData(time_data, z_vals)
+
+    def _refresh_pending_data(self):
+        """定时器到点后，补上节流期间最后一次请求的数据"""
+        if self._pending:
+            self._draw_multi_data()
 
     # ---------- 历史文件加载 ----------
     def open_history_dialog(self):
@@ -405,42 +434,30 @@ class GraphController(QObject):
 
         prefix = "电机" if self.ui.is_motor else "传感器"
 
-        # 收集位移/偏航X
+        # 收集位移/偏航X、速度/偏航Y（加速度/偏航Z 曲线已移除）
         disp_items = []
         vel_items = []
-        acc_items = []
         for dev_idx, curve_set in enumerate(self.ui.curves):
             if dev_idx < len(self.ui.checkboxes) and not self.ui.checkboxes[dev_idx].isChecked():
                 continue
-            # 获取三条曲线数据
+            # 获取两条曲线数据
             y1_data = curve_set[0].yData
             y2_data = curve_set[1].yData
-            y3_data = curve_set[2].yData
 
             v1 = y1_data[idx] if y1_data is not None and idx < len(y1_data) else 0.0
             v2 = y2_data[idx] if y2_data is not None and idx < len(y2_data) else 0.0
-            v3 = y3_data[idx] if y3_data is not None and idx < len(y3_data) else 0.0
 
-            if self.ui.is_motor:
-                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.3f}")
-                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.3f}")
-                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.3f}")
-            else:
-                # 传感器模式同理，可自定义标签
-                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.3f}")
-                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.3f}")
-                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.3f}")
+            disp_items.append(f"{prefix}{dev_idx+1}: {v1:.2f}")
+            vel_items.append(f"{prefix}{dev_idx+1}: {v2:.2f}")
 
-        lines = [f"X = {actual_x:.3f}"]
+        lines = [f"X = {actual_x:.2f}"]
         if disp_items:
             if self.ui.is_motor:
                 lines.append("位移: " + ", ".join(disp_items))
                 lines.append("速度: " + ", ".join(vel_items))
-                lines.append("加速度: " + ", ".join(acc_items))
             else:
                 lines.append("横滚: " + ", ".join(disp_items))
                 lines.append("俯仰: " + ", ".join(vel_items))
-                lines.append("偏航: " + ", ".join(acc_items))
         else:
             lines.append("(无可见设备)")
 
@@ -471,9 +488,11 @@ class BendGraphController:
         if not self.window.time_data:
             return
         self.window.plot_widget.autoRange()
+        Nozzle.clamp_min_y_span(self.window.plot_widget, 8.0)   # 偏航 ±4
 
     def reset_view(self):
         self.window.plot_widget.setRange(xRange=None, yRange=None, padding=0.05)
+        Nozzle.clamp_min_y_span(self.window.plot_widget, 8.0)   # 偏航 ±4
 
     def save_data(self):
         # 保存弯曲数据为 CSV

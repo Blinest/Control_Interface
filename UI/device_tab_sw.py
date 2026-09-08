@@ -43,6 +43,9 @@ class SwDeviceTab(Nozzle):
         self.hist_bend_up_target = []             # 向上目标偏转角列表
         self.hist_bend_down_target = []           # 向下目标偏转角列表
 
+        self._last_embedded_update = 0.0          # 内嵌实时曲线刷新节流
+        self.embedded_update_interval = 0.1       # 与 LYZ 一致
+
         # 创建滤波器
         self.data_filter = DataFilter(window_size=3)
         self.filtered_bend_angle1 = 0.0
@@ -108,6 +111,17 @@ class SwDeviceTab(Nozzle):
         l_bend2.addWidget(self.btn_bend2)
         l_quick.addLayout(l_bend2)
 
+        # 峰值速度设置
+        l_speed = QHBoxLayout()
+        lbl_speed = self.create_section_label("峰值速度设置:")
+        l_speed.addWidget(lbl_speed)
+        self.spin_speed = self._create_custom_spinbox(0, 50, 30, "Speed: ", "")
+        self.btn_speed = AnimatedButton("设置峰值速度", "#00BCD4", "#505050")
+        self.btn_speed.clicked.connect(self.send_speed_command)
+        l_speed.addWidget(self.spin_speed)
+        l_speed.addWidget(self.btn_speed)
+        l_quick.addLayout(l_speed)
+
         # 偏转复位（已移至 3. 总控）
         l_quick.addWidget(self.create_status_lamp_row(self.lamp_bend))
 
@@ -140,12 +154,15 @@ class SwDeviceTab(Nozzle):
         v_bend = QVBoxLayout(tab_bend)
 
         # --- 进度条卡片：向下偏转 / 向上偏转 ---
-        self.angle1_progress_frame, self.angle1_progress, self.angle1_progress_val = \
-            self.create_progress_card("向下偏转", "deg", "#D13438")
+        # 每张卡片内嵌一条透明背景的实时曲线（目标虚线 / 当前实线）
+        self.angle1_progress_frame, self.angle1_progress, self.angle1_progress_val, \
+            self.angle1_plot, self.angle1_curve_target, self.angle1_curve_current = \
+            self.create_embedded_curve_card("向下偏转", "deg", "#D13438")
         v_bend.addWidget(self.angle1_progress_frame)
 
-        self.angle2_progress_frame, self.angle2_progress, self.angle2_progress_val = \
-            self.create_progress_card("向上偏转", "deg", "#0078D7")
+        self.angle2_progress_frame, self.angle2_progress, self.angle2_progress_val, \
+            self.angle2_plot, self.angle2_curve_target, self.angle2_curve_current = \
+            self.create_embedded_curve_card("向上偏转", "deg", "#0078D7")
         v_bend.addWidget(self.angle2_progress_frame)
 
         self.tabs.addTab(tab_bend, "🔧 偏转数据监控")
@@ -191,6 +208,19 @@ class SwDeviceTab(Nozzle):
         detail = f"方向:{'正' if direction == 0 else '负'}, 角度:{angle/100}度"
         self.send_cmd(0x03, action, detail, data, is_motor=True)
         self.update_ui()
+
+    def send_speed_command(self):
+        """发送速度设置命令（功能码 0x07，数据帧为 1 字节速度值）"""
+        if not self.is_started:
+            QMessageBox.warning(self, "错误", "请先点击启动控制系统")
+            return
+
+        speed = int(self.spin_speed.spin.value())
+        data = struct.pack('>B', speed)   # 1 字节
+
+        action = "速度设置"
+        detail = f"速度={speed}"
+        self.send_cmd(0x07, action, detail, data, is_motor=True)
 
     def send_home_command(self):
         if not self.is_started:
@@ -239,8 +269,8 @@ class SwDeviceTab(Nozzle):
         self.btn_cycle_motion.style().polish(self.btn_cycle_motion)
 
     def _send_cycle_motion_frame(self, opened):
-        """构建并发送循环运动帧：AA 05 00(启动) / AA 05 01(关闭) + 校验和"""
-        frame = bytearray([0xAA, 0x05, 0x00 if opened else 0x01])
+        """构建并发送循环运动帧：AA 05 01 00(启动) / AA 05 01 01(关闭) + 校验和"""
+        frame = bytearray([0xAA, 0x05, 0x01, 0x00 if opened else 0x01])
         frame.append(sum(frame) & 0xFF)
         self.worker.send_data(bytes(frame))
         action = "循环运动启动" if opened else "循环运动关闭"
@@ -290,7 +320,7 @@ class SwDeviceTab(Nozzle):
 
     def get_error_disable_buttons(self):
         return [self.btn_stop, self.btn_home, self.btn_bend1, self.btn_bend2,
-                self.btn_cycle_motion]
+                self.btn_speed, self.btn_cycle_motion]
 
     # ------------------ 数据解析 ------------------
 
@@ -381,6 +411,9 @@ class SwDeviceTab(Nozzle):
             self.hist_bend_up_target.pop(0)
             self.hist_bend_down_target.pop(0)
 
+        # 更新内嵌实时曲线（降频刷新，避免 10ms 重绘导致主线程卡死）
+        self._update_embedded_curves(current_time_sec)
+
         if self.bend_graph_window and self.bend_graph_window.isVisible():
             self.bend_graph_controller.window.update_data(
                 self.hist_bend_time,
@@ -389,6 +422,30 @@ class SwDeviceTab(Nozzle):
                 self.hist_bend_up_target,
                 self.hist_bend_down_target
             )
+
+    def _update_embedded_curves(self, current_time_sec):
+        """刷新偏转数据监控页两张卡片内嵌的实时曲线（目标虚线 / 当前实线），节流 0.1s"""
+        if current_time_sec - self._last_embedded_update < self.embedded_update_interval:
+            return
+        self._last_embedded_update = current_time_sec
+        # 只绘制最近 20 秒
+        window_start = current_time_sec - 20
+        start_idx = 0
+        while start_idx < len(self.hist_bend_time) and self.hist_bend_time[start_idx] < window_start:
+            start_idx += 1
+        ts = self.hist_bend_time[start_idx:]
+        if not ts:
+            return
+        if hasattr(self, 'angle1_curve_target'):
+            self.angle1_curve_target.setData(ts, self.hist_bend_down_target[start_idx:])
+            self.angle1_curve_current.setData(ts, self.hist_bend_down_current[start_idx:])
+            Nozzle.clamp_min_y_span(self.angle1_plot, 30.0)  # 偏转 0~30
+            self.angle1_plot.setXRange(max(0, ts[-1] - 20), ts[-1], padding=0)
+        if hasattr(self, 'angle2_curve_target'):
+            self.angle2_curve_target.setData(ts, self.hist_bend_up_target[start_idx:])
+            self.angle2_curve_current.setData(ts, self.hist_bend_up_current[start_idx:])
+            Nozzle.clamp_min_y_span(self.angle2_plot, 30.0)  # 偏转 0~30
+            self.angle2_plot.setXRange(max(0, ts[-1] - 20), ts[-1], padding=0)
 
     # ---------- 辅助函数 ----------
     def refresh_bend_graph(self):

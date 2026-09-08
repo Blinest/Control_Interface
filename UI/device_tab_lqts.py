@@ -15,7 +15,6 @@ from Core.auth import GlobalHistory
 from UI.nozzle import Nozzle, TouchSplitter
 # 自定义类
 from .widgets import AnimatedButton
-from Utils.controller import PID
 # 工具类
 import time
 
@@ -45,8 +44,12 @@ class LqtsDeviceTab(Nozzle):
         self.hist_bend_time = []       # 时间列表
         self.hist_bend_target = []     # 目标角度列表
         self.hist_bend_current = []    # 当前角度列表
+        self.hist_area_target = []     # 目标截面面积缩放比列表
+        self.hist_area_current = []    # 当前截面面积缩放比列表
         self.bend_graph_window = None  # 角度偏转曲线窗口实例
         self.bend_graph_controller = None
+        self._last_embedded_update = 0.0       # 内嵌实时曲线刷新节流
+        self.embedded_update_interval = 0.1    # 与 LYZ 一致
 
         self.m_page, self.s_page = 0, 0
         self.cards_motor, self.cards_sensor = [], []
@@ -60,15 +63,17 @@ class LqtsDeviceTab(Nozzle):
         self.filtered_bend_angle = 0.0
         self.angle_filter_alpha = 0.3   # 滤波系数
 
-        # 创建控制器
-        self.last_sent_angle = None          # 记录上次闭环发送的目标角度
-        self.angle_deadband = 1            # 死区阈值（度），变化小于此值时不发送
+        # 闭环角度偏转：启动仅下发一次指令，示数稳定（波动≤0.1°连续3s）后自动停止
         self.closed_loop_enabled = False
         self.closed_loop_target_angle = 0.0
-        self.pid = PID(Kp=1, Ki=0.01, Kd=0.01, dt=0.2, output_limits=(-70, 70), integral_limits=(-20, 20))
+        self._stop_stable_start = 0.0      # 波动开始稳定（秒）
+        self._stop_stable_min = None       # 稳定窗口内最小示数
+        self._stop_stable_max = None       # 稳定窗口内最大示数
+        self.stop_stability_threshold = 0.05   # 示数波动阈值（度）
+        self.stop_stability_duration = 5.0    # 稳定持续时间（秒）
         self.control_timer = QTimer()
         self.control_timer.timeout.connect(self.closed_loop_control)
-        self.control_timer.start(200)   # 控制周期 200ms，与 dt 一致
+        self.control_timer.start(200)   # 控制周期 200ms
 
     def init_ui(self):
         # 创建内容容器
@@ -116,7 +121,7 @@ class LqtsDeviceTab(Nozzle):
         self.spin_bend = self._create_custom_spinbox(-70, 70, 0, prefix= "Angle: ", suffix="°")
         self.btn_bend = AnimatedButton("开环角度偏转","#00BCD4","#505050")
         self.btn_bend.clicked.connect(lambda checked: self.send_bend_command())
-        # 闭环角度偏转按钮
+        # 闭环角度偏转按钮（周期发送目标角度，到位后自动停止）
         self.btn_closed_bend = AnimatedButton("闭环角度偏转","#FF8C00","#B85C00")  # 橙色风格
         self.btn_closed_bend.clicked.connect(self.send_closed_loop_bend_command)
         l_bend.addWidget(self.spin_bend)
@@ -228,36 +233,18 @@ class LqtsDeviceTab(Nozzle):
         v_bend = QVBoxLayout(tab_bend)
 
         # --- 进度条卡片：偏转角度 / 截面面积缩放比 ---
-        self.angle_progress_frame, self.angle_progress, self.angle_progress_val = \
-            self.create_progress_card("偏转角度", "deg", "#D13438")
+        # 每张卡片内嵌一条透明背景的实时曲线（目标虚线 / 当前实线）
+        self.angle_progress_frame, self.angle_progress, self.angle_progress_val, \
+            self.angle_plot, self.angle_curve_target, self.angle_curve_current = \
+            self.create_embedded_curve_card("偏转角度", "deg", "#D13438")
         v_bend.addWidget(self.angle_progress_frame)
 
-        self.area_progress_frame, self.area_progress, self.area_progress_val = \
-            self.create_progress_card("截面面积缩放比", "%", "#107C10")
+        self.area_progress_frame, self.area_progress, self.area_progress_val, \
+            self.area_plot, self.area_curve_target, self.area_curve_current = \
+            self.create_embedded_curve_card("截面面积缩放比", "%", "#107C10")
         v_bend.addWidget(self.area_progress_frame)
 
         self.tabs.addTab(tab_bend, "🔧 LQTS喷管运动数据监控")
-
-        # 定点专门监测页面（修改部分）
-        tab_single = QWidget()
-        v_single = QVBoxLayout(tab_single)
-        h_sel = QHBoxLayout()
-        self.cb_view_type = QComboBox()
-        self.cb_view_type.addItems(["定点监测: 电机", "定点监测: IMU"])
-        self.cb_view_type.currentIndexChanged.connect(self.update_single_monitor_labels)
-        self.cb_view_id = QComboBox()
-        self.cb_view_id.currentIndexChanged.connect(lambda: self.update_ui())
-        h_sel.addWidget(self.cb_view_type)
-        h_sel.addWidget(self.cb_view_id)
-        h_sel.addStretch()
-        v_single.addLayout(h_sel)
-        # 创建动态卡片
-        self.single_cards = []  # (title_label, value_label)
-        for default_title, default_color in [("位移 (mm)", "#D13438"), ("速度 (mm/s)", "#107C10"), ("加速度 (mm/s²)", "#0078D7")]:
-            card_frame, title_label, value_label = self.create_single_monitor_card(default_title, default_color)
-            v_single.addWidget(card_frame)
-            self.single_cards.append((title_label, value_label))
-        self.tabs.addTab(tab_single, "🎯 定点监测(电机与IMU)")
 
         self.right_layout.addWidget(self.tabs)
         splitter.addWidget(left_widget)
@@ -272,41 +259,6 @@ class LqtsDeviceTab(Nozzle):
         self.layout().addWidget(scroll_area)
 
         self.rebuild_cards()
-
-    def update_single_monitor_labels(self):
-        """根据定点监测类型更新卡片标题、颜色以及ID下拉框选项"""
-        is_motor = (self.cb_view_type.currentIndex() == 0)
-        if is_motor:
-            titles = ["位移 (mm)", "速度 (mm/s)", "加速度 (mm/s²)"]
-            colors = ["#D13438", "#107C10", "#0078D7"]
-            # 更新ID下拉框选项为电机ID
-            self.update_single_monitor_ids(range(1, self.num_m + 1))
-        else:
-            titles = ["Pitch (deg)", "Roll (deg)", "Yaw (deg)"]
-            colors = ["#D13438", "#107C10", "#0078D7"]
-            # 更新ID下拉框选项为IMU ID
-            self.update_single_monitor_ids(range(1, self.num_s + 1))
-        for i, (title_label, value_label) in enumerate(self.single_cards):
-            title_label.setText(titles[i])
-            value_label.setStyleSheet(f"color: {colors[i]}; font-size: 15pt; font-weight: bold; border: none;")
-        self.update_ui()
-
-    def update_single_monitor_ids(self, ids_range):
-        """更新定点监测的ID下拉框选项，ids_range是一个可迭代的ID列表（如range(1, num+1)）"""
-        current_id = self.cb_view_id.currentText()
-        self.cb_view_id.blockSignals(True)
-        self.cb_view_id.clear()
-        id_list = [f"ID {i}" for i in ids_range]
-        if id_list:
-            self.cb_view_id.addItems(id_list)
-            # 尝试恢复之前选中的ID
-            if current_id in id_list:
-                self.cb_view_id.setCurrentText(current_id)
-            else:
-                self.cb_view_id.setCurrentIndex(0)
-        else:
-            self.cb_view_id.addItem("无")
-        self.cb_view_id.blockSignals(False)
 
     def expand_device(self, dev_type):
         if dev_type == 'motor':
@@ -331,7 +283,6 @@ class LqtsDeviceTab(Nozzle):
         for i in reversed(range(self.grid_s.count())):
             self.grid_s.itemAt(i).widget().setParent(None)
         self.cb_motor_id.clear()
-        self.cb_view_id.clear()
         if self.num_m > 0:
             while len(self.motor_data) < self.num_m:
                 self.motor_data.append([0.0, 0.0, 0.0])
@@ -360,10 +311,7 @@ class LqtsDeviceTab(Nozzle):
             card, lbls = self.create_sensor_card(f"IMU ID:{i + 1}", "#D83B01")
             self.cards_sensor.append((card, lbls))
             self.grid_s.addWidget(card, 0, i % 3)
-        max_id = max(self.num_m, self.num_s)
-        self.cb_view_id.addItems([f"ID {i + 1}" for i in range(max_id)])
         self.refresh_pagination()
-        self.update_single_monitor_labels() # 确保ID列表与当前数量同步
         self.update_ui()
 
     def change_page(self, t, delta):
@@ -389,8 +337,8 @@ class LqtsDeviceTab(Nozzle):
 
     def sys_close(self):
         self.is_started = False
-        self.closed_loop_enabled = False   # 停止闭环
         self._force_cycle_motion_off()     # 关闭循环运动状态
+        self._force_closed_loop_off()      # 关闭闭环偏转状态
         self.send_cmd(0x00, "失能", "关闭LQTS喷管", is_motor=True)
 
     def sys_start(self):
@@ -416,13 +364,20 @@ class LqtsDeviceTab(Nozzle):
             self.btn_toggle.blockSignals(False)
 
         self.is_started = False
-        self.closed_loop_enabled = False   # 停止闭环
 
-        # 紧急停止时强制关闭循环运动
+        # 紧急停止时强制关闭循环运动与闭环偏转
         self._force_cycle_motion_off()
+        self._force_closed_loop_off()
 
         # 发送紧急停止命令
         self.send_cmd(0x02, "紧急停止", "LQTS紧急停止按钮", is_motor=True)
+
+    def _force_closed_loop_off(self):
+        """强制将闭环偏转按钮复位为关闭态（紧急停止/系统关闭时调用）"""
+        self.closed_loop_enabled = False
+        if hasattr(self, 'btn_closed_bend'):
+            self.btn_closed_bend.setText("闭环角度偏转")
+            self.btn_closed_bend.set_normal_color("#FF8C00")
 
     def _force_cycle_motion_off(self):
         """强制将循环运动按钮复位为关闭态（紧急停止/系统关闭时调用）"""
@@ -439,7 +394,7 @@ class LqtsDeviceTab(Nozzle):
     def get_error_disable_buttons(self):
         return [self.btn_stop, self.btn_home, self.btn_motion_ctrl, self.btn_m_next, self.btn_m_prev,
                 self.btn_s_next, self.btn_s_prev, self.btn_send_m, self.btn_bend,
-                self.btn_shrink]
+                self.btn_closed_bend, self.btn_shrink]
 
     def send_motor(self):
         # 检查是否有电机
@@ -510,8 +465,8 @@ class LqtsDeviceTab(Nozzle):
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
 
     def _send_cycle_motion_frame(self, opened):
-        """构建并发送循环运动帧：AA 05 00(启动) / AA 05 01(关闭) + 校验和"""
-        frame = bytearray([0xAA, 0x05, 0x00 if opened else 0x01])
+        """构建并发送循环运动帧：AA 05 01 00(启动) / AA 05 01 01(关闭) + 校验和"""
+        frame = bytearray([0xAA, 0x05, 0x01, 0x00 if opened else 0x01])
         frame.append(sum(frame) & 0xFF)
         self.worker.send_data(bytes(frame))
         action = "循环运动启动" if opened else "循环运动关闭"
@@ -574,28 +529,22 @@ class LqtsDeviceTab(Nozzle):
             QMessageBox.critical(self, "错误", error_msg)
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
 
-    def send_bend_command(self, angle_deg=None, log_enabled=True):
-        """
-        发送角度偏转命令（开环或闭环均可调用）
-        :param angle_deg: 目标角度（度），若为 None 则从 spin_bend 取值
-        :param log_enabled: 是否记录日志（闭环控制时可设为 False）
+    def send_bend_command(self, angle_deg=None):
+        """发送开环角度偏转命令
+
+        :param angle_deg: 目标角度（度），为 None 时取 spin_bend 输入框的值。
+            下位机收到后自主执行闭环控制。
         """
         if not self.is_started:
-            if log_enabled:
-                QMessageBox.warning(self, "错误", "请先点击启动控制系统")
+            QMessageBox.warning(self, "错误", "请先点击启动控制系统")
             return
         if self.num_m == 0:
-            if log_enabled:
-                QMessageBox.warning(self, "错误", "当前没有可用的电机设备，无法进行角度偏转")
+            QMessageBox.warning(self, "错误", "当前没有可用的电机设备，无法进行角度偏转")
             return
 
-        # 确定目标角度
-        if angle_deg is None:
-            target_angle = self.spin_bend.spin.value()
-        else:
-            target_angle = angle_deg
+        target_angle = self.spin_bend.spin.value() if angle_deg is None else angle_deg
 
-        # 更新界面显示的目标值（开环时显示 spin_bend 值，闭环时显示实际目标）
+        # 更新界面显示的目标值
         self.target_bend_angle = target_angle
 
         direction = 0 if target_angle >= 0 else 1
@@ -610,7 +559,11 @@ class LqtsDeviceTab(Nozzle):
         self.send_cmd(0x06, action, detail, data, is_motor=True)
 
     def send_closed_loop_bend_command(self):
-        """启动/停止闭环角度偏转控制"""
+        """启动/手动停止闭环角度偏转控制
+
+        启动仅下发一次指令，随后自动监测示数稳定（波动≤0.1°持续3s）即自动停止；
+        手动点击按钮则立即停止，不等待稳定。
+        """
         if not self.is_started:
             QMessageBox.warning(self, "错误", "请先点击启动控制系统")
             return
@@ -619,41 +572,85 @@ class LqtsDeviceTab(Nozzle):
             return
 
         if not self.closed_loop_enabled:
-            # 启动闭环控制
+            # 启动闭环控制：下发一次指令，随后自动监测稳定后自动停止
             self.closed_loop_target_angle = self.spin_bend.spin.value()
-            self.pid.reset()
-            self.last_sent_angle = None          # 重置记录
             self.closed_loop_enabled = True
-            self.btn_closed_bend.setText("⏹ 停止闭环角度偏转")
-            self.btn_closed_bend.set_normal_color("#D13438")
-            self.logger(f"🔄 启动闭环角度偏转控制，目标角度={self.closed_loop_target_angle}°", port=self.port_name)
-        else:
-            # 停止闭环控制
-            self.closed_loop_enabled = False
-            self.btn_closed_bend.setText("闭环角度偏转")
+            self._stop_stable_start = time.time()
+            self._stop_stable_min = None
+            self._stop_stable_max = None
+            self.btn_closed_bend.setText("⏳ 监测稳定中...")
             self.btn_closed_bend.set_normal_color("#FF8C00")
-            self.logger("⏹ 停止闭环角度偏转控制", port=self.port_name)
+            self.logger(f"🔄 启动闭环角度偏转控制，目标角度={self.closed_loop_target_angle}°，"
+                        f"示数稳定后自动停止", port=self.port_name)
+            self._send_closed_loop_once()   # 立即发送一次目标角度
+        else:
+            # 手动点击：立即停止，不等待稳定
+            self._stop_closed_loop()
+
+    def _stop_closed_loop(self):
+        """停止闭环控制：发送停止指令并复位按钮状态"""
+        # 发送停止闭环指令（flag=00，方向+角度传当前目标）
+        self._send_closed_loop_frame(flag=0, angle_deg=self.closed_loop_target_angle)
+        self.closed_loop_enabled = False
+        self.btn_closed_bend.setText("闭环角度偏转")
+        self.btn_closed_bend.set_normal_color("#FF8C00")
+        self.logger("⏹ 停止闭环角度偏转控制", port=self.port_name)
+
+    def _send_closed_loop_once(self):
+        """发送一次闭环启动指令（flag=01，带目标角度）"""
+        self._send_closed_loop_frame(flag=1, angle_deg=self.closed_loop_target_angle)
+
+    def _send_closed_loop_frame(self, flag, angle_deg):
+        """构建并发送闭环角度偏转指令帧
+
+        帧格式: [AA] [06] [len] [01] [FC] [flag] [direction] [angle_hi] [angle_lo] [checksum]
+        - 数据部分共 6 字节: count=01, special_addr=FC, flag(01启动/00停止), direction, angle(0.01°单位)
+        """
+        self.target_bend_angle = angle_deg
+        direction = 0 if angle_deg >= 0 else 1
+        angle = abs(int(angle_deg * 100))   # 0.01°单位
+        data = struct.pack('>BBBBH', 1, 0xFC, flag, direction, angle)
+
+        action = "闭环角度偏转"
+        detail = f"{'启动' if flag else '停止'}, 目标角度:{angle_deg:.2f}°, 方向:{'正' if direction == 0 else '负'}"
+        self.send_cmd(0x06, action, detail, data, is_motor=True)
 
     def closed_loop_control(self):
+        """周期任务（200ms）：监测示数稳定（波动≤0.1°持续3s）即自动停止闭环"""
         if not self.closed_loop_enabled or not self.is_started:
             return
         if self.num_s == 0:
             return
 
-        current_angle = self.filtered_bend_angle   # 使用滤波值
-        # PID 输出即为目标角度（度）
-        target_angle = -self.pid.update(self.closed_loop_target_angle, current_angle)
-        # 限幅
-        target_angle = max(-70, min(70, target_angle))
+        # 当前偏转角 = 第一个 IMU 的 pitch（sensor.x）
+        current_angle = self.sensor_data[0][0] if self.sensor_data else 0.0
 
-        # 死区判断：如果与上次发送的角度差异小于阈值，则不发送
-        if self.last_sent_angle is not None:
-            if abs(target_angle - self.last_sent_angle) < self.angle_deadband:
-                return
+        # 监测示数波动，稳定持续 3s 后自动停止
+        self._check_stop_stability(current_angle)
 
-        # 发送角度偏转命令（不记录日志）
-        self.send_bend_command(angle_deg=target_angle, log_enabled=False)
-        self.last_sent_angle = target_angle
+    def _check_stop_stability(self, current_angle):
+        """停止稳定检测：示数波动 ≤0.1° 连续 3s 后发送停止指令"""
+        now = time.time()
+        # 更新稳定窗口内的最大/最小示数
+        if self._stop_stable_min is None or current_angle < self._stop_stable_min:
+            self._stop_stable_min = current_angle
+        if self._stop_stable_max is None or current_angle > self._stop_stable_max:
+            self._stop_stable_max = current_angle
+
+        span = self._stop_stable_max - self._stop_stable_min
+        if span > self.stop_stability_threshold:
+            # 波动超过阈值，重置稳定计时
+            self._stop_stable_start = now
+            self._stop_stable_min = current_angle
+            self._stop_stable_max = current_angle
+            return
+
+        # 波动在阈值内，检查是否已持续 3s
+        if now - self._stop_stable_start >= self.stop_stability_duration:
+            self.logger(f"✅ 示数稳定（波动 {span:.3f}° ≤ {self.stop_stability_threshold}°，"
+                        f"持续 {self.stop_stability_duration:.0f}s），停止闭环控制",
+                        port=self.port_name)
+            self._stop_closed_loop()
 
     # ------------------ 核心：数据解析（调用后端）------------------
     @pyqtSlot(bytes)
@@ -738,26 +735,6 @@ class LqtsDeviceTab(Nozzle):
             self.cards_sensor[i][1][1].setText(f"{self.sensor_data[i][1]:.2f}")
             self.cards_sensor[i][1][2].setText(f"{self.sensor_data[i][2]:.2f}")
 
-        # 定点专门监测更新
-        idx = self.cb_view_id.currentIndex()
-        is_motor = (self.cb_view_type.currentIndex() == 0)
-        if is_motor:
-            if 0 <= idx < self.num_m:
-                values = self.motor_data[idx]
-                for i, (_, value_label) in enumerate(self.single_cards):
-                    value_label.setText(f"{values[i]:.2f}")
-            else:
-                for _, value_label in self.single_cards:
-                    value_label.setText("--")
-        else:
-            if 0 <= idx < self.num_s:
-                values = self.sensor_data[idx]
-                for i, (_, value_label) in enumerate(self.single_cards):
-                    value_label.setText(f"{values[i]:.2f}")
-            else:
-                for _, value_label in self.single_cards:
-                    value_label.setText("--")
-
         if hasattr(self, 'motor_status_ball') and hasattr(self, 'motor_states'):
             idx = self.cb_motor_id.currentIndex()
             if idx >= 0 and idx < len(self.motor_states):
@@ -794,16 +771,23 @@ class LqtsDeviceTab(Nozzle):
         # 计算相对时间（秒，从 0 开始）
         current_time_sec = time.time() - self.start_time
 
-        # 角度偏转
+        # 角度偏转 / 截面面积缩放比
         self.hist_bend_time.append(current_time_sec)
         self.hist_bend_target.append(self.target_bend_angle)
         self.hist_bend_current.append(self.current_bend_angle)
+        self.hist_area_target.append(self.target_area_change)
+        self.hist_area_current.append(self.current_area_change)
 
         # 限制长度（保留最近60秒）
         while len(self.hist_bend_time) > 0 and self.hist_bend_time[0] < current_time_sec - 60:
             self.hist_bend_time.pop(0)
             self.hist_bend_target.pop(0)
             self.hist_bend_current.pop(0)
+            self.hist_area_target.pop(0)
+            self.hist_area_current.pop(0)
+
+        # 更新内嵌实时曲线（降频刷新，避免 10ms 重绘导致主线程卡死）
+        self._update_embedded_curves(current_time_sec)
 
         # 更新曲线窗口（如果已打开）
         if self.bend_graph_window and self.bend_graph_window.isVisible():
@@ -842,13 +826,34 @@ class LqtsDeviceTab(Nozzle):
                     valid_motor_data = [data for data in self.hist_motors if data and len(data) > 0]
                     valid_times = self.hist_time[-len(valid_motor_data):] if valid_motor_data else []
                     self.active_graph_controller.update_multi_data(valid_times, valid_motor_data)
-                    if valid_motor_data and len(valid_motor_data) > 0:
-                        self.active_graph_controller.update_multi_data(valid_times, valid_motor_data)
                 elif self.active_type == 'sensor' and self.hist_sensors and len(self.hist_sensors) > 0:
                     valid_sensor_data = [data for data in self.hist_sensors if data and len(data) > 0]
                     valid_times = self.hist_time[-len(valid_sensor_data):] if valid_sensor_data else []
-                    if valid_sensor_data and len(valid_sensor_data) > 0:
-                        self.active_graph_controller.update_multi_data(valid_times, valid_sensor_data)
+                    self.active_graph_controller.update_multi_data(valid_times, valid_sensor_data)
+
+    def _update_embedded_curves(self, current_time_sec):
+        """刷新喷管运动数据监控页两张卡片内嵌的实时曲线（目标虚线 / 当前实线），节流 0.1s"""
+        if current_time_sec - self._last_embedded_update < self.embedded_update_interval:
+            return
+        self._last_embedded_update = current_time_sec
+        # 只绘制最近 20 秒
+        window_start = current_time_sec - 20
+        start_idx = 0
+        while start_idx < len(self.hist_bend_time) and self.hist_bend_time[start_idx] < window_start:
+            start_idx += 1
+        ts = self.hist_bend_time[start_idx:]
+        if not ts:
+            return
+        if hasattr(self, 'angle_curve_target'):
+            self.angle_curve_target.setData(ts, self.hist_bend_target[start_idx:])
+            self.angle_curve_current.setData(ts, self.hist_bend_current[start_idx:])
+            Nozzle.clamp_min_y_span(self.angle_plot, 140.0)  # 偏转满行程 ±70
+            self.angle_plot.setXRange(max(0, ts[-1] - 20), ts[-1], padding=0)
+        if hasattr(self, 'area_curve_target'):
+            self.area_curve_target.setData(ts, self.hist_area_target[start_idx:])
+            self.area_curve_current.setData(ts, self.hist_area_current[start_idx:])
+            Nozzle.clamp_min_y_span(self.area_plot, 100.0)   # 面积 0~100
+            self.area_plot.setXRange(max(0, ts[-1] - 20), ts[-1], padding=0)
 
 
 # 延迟导入曲线窗口/控制器类，避免循环导入

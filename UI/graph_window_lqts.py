@@ -12,6 +12,15 @@ import csv
 from datetime import datetime
 import os
 
+# 自定义类（复用基类 Y 轴最小跨度钳制）
+from UI.nozzle import Nozzle
+
+
+class TwoDecimalAxisItem(pg.AxisItem):
+    """坐标轴刻度保留两位小数"""
+    def tickStrings(self, values, scale, spacing):
+        return [f"{value * scale:.2f}" for value in values]
+
 
 class GraphWindowUI(QDialog):
     def __init__(self, title, is_motor=True, num_devices=1, parent=None, enable_auto_save=True, is_history_mode=False):
@@ -84,7 +93,13 @@ class GraphWindowUI(QDialog):
 
         # --- 绘图区域 ---
         pg.setConfigOptions(antialias=True)
-        self.plot_widget = pg.PlotWidget(background='w')
+        self.plot_widget = pg.PlotWidget(
+            background='w',
+            axisItems={
+                'bottom': TwoDecimalAxisItem(orientation='bottom'),
+                'left': TwoDecimalAxisItem(orientation='left')
+            }
+        )
         self.plot_widget.addLegend()
         self.plot_widget.setLabel('bottom', '时间', units='秒')
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
@@ -123,14 +138,13 @@ class GraphWindowUI(QDialog):
             self.chk_layout.addWidget(chk)
             self.checkboxes.append(chk)
 
+            # 每台设备只保留两条曲线（位移/速度 或 偏航X/偏航Y），减少 1/3 曲线数量
             name_x = f"{prefix}{i + 1}-位移" if is_motor else f"{prefix}{i + 1}-偏航X"
             name_y = f"{prefix}{i + 1}-速度" if is_motor else f"{prefix}{i + 1}-偏航Y"
-            name_z = f"{prefix}{i + 1}-加速度" if is_motor else f"{prefix}{i + 1}-偏航Z"
 
-            c_x = self.plot_widget.plot(name=name_x, pen=pg.mkPen(color=color, width=2, style=Qt.SolidLine))
-            c_y = self.plot_widget.plot(name=name_y, pen=pg.mkPen(color=color, width=2, style=Qt.DashLine))
-            c_z = self.plot_widget.plot(name=name_z, pen=pg.mkPen(color=color, width=2, style=Qt.DotLine))
-            self.curves.append((c_x, c_y, c_z))
+            c_x = self._make_curve(name_x, pg.mkPen(color=color, width=2, style=Qt.SolidLine))
+            c_y = self._make_curve(name_y, pg.mkPen(color=color, width=2, style=Qt.DashLine))
+            self.curves.append((c_x, c_y))
 
         # 复选框滚动区
         scroll = QScrollArea()
@@ -142,6 +156,17 @@ class GraphWindowUI(QDialog):
         self.layout.addWidget(scroll)
 
         self._controller = None
+
+    def _make_curve(self, name, pen):
+        """创建带性能优化的曲线：裁剪到可见区域、自动降采样、关闭抗锯齿"""
+        return self.plot_widget.plot(
+            name=name,
+            pen=pen,
+            antialias=False,        # 大量曲线时抗锯齿开销大，此窗口关闭
+            clipToView=True,        # 只绘制可见 X 范围内的点
+            autoDownsample=True,    # 点数超过像素宽度时自动抽稀
+            useCache=True,          # 数据未变化时复用缓存位图
+        )
 
     def _on_refresh_file_list(self):
         if self._controller:
@@ -207,23 +232,13 @@ class GraphWindowUI(QDialog):
             self.chk_layout.addWidget(chk)   # 需要在 __init__ 中保存为 self.chk_layout
             self.checkboxes.append(chk)
 
+            # 每台设备只保留两条曲线（位移/速度 或 偏航X/偏航Y），减少 1/3 曲线数量
             name_x = f"{prefix}{i + 1}-位移" if self.is_motor else f"{prefix}{i + 1}-偏航X"
             name_y = f"{prefix}{i + 1}-速度" if self.is_motor else f"{prefix}{i + 1}-偏航Y"
-            name_z = f"{prefix}{i + 1}-加速度" if self.is_motor else f"{prefix}{i + 1}-偏航Z"
 
-            c_x = self.plot_widget.plot(
-                name=name_x,
-                pen=pg.mkPen(color=color, width=2, style=Qt.SolidLine)
-            )
-            c_y = self.plot_widget.plot(
-                name=name_y,
-                pen=pg.mkPen(color=color, width=2, style=Qt.DashLine)
-            )
-            c_z = self.plot_widget.plot(
-                name=name_z,
-                pen=pg.mkPen(color=color, width=2, style=Qt.DotLine)
-            )
-            self.curves.append((c_x, c_y, c_z))
+            c_x = self._make_curve(name_x, pg.mkPen(color=color, width=2, style=Qt.SolidLine))
+            c_y = self._make_curve(name_y, pg.mkPen(color=color, width=2, style=Qt.DashLine))
+            self.curves.append((c_x, c_y))
 
         # 重新连接信号
         if self._controller:
@@ -362,7 +377,13 @@ class BendGraphWindow(QDialog):
 
         # 绘图区域
         pg.setConfigOptions(antialias=True)
-        self.plot_widget = pg.PlotWidget(background='w')
+        self.plot_widget = pg.PlotWidget(
+            background='w',
+            axisItems={
+                'bottom': TwoDecimalAxisItem(orientation='bottom'),
+                'left': TwoDecimalAxisItem(orientation='left')
+            }
+        )
         self.plot_widget.addLegend()
         self.plot_widget.setLabel('bottom', '时间', units='秒')
         self.plot_widget.setLabel('left', '角度', units='度')
@@ -398,3 +419,5 @@ class BendGraphWindow(QDialog):
         self.current_data = currents
         self.curve_target.setData(times, targets)
         self.curve_current.setData(times, currents)
+        # Y 轴最小跨度钳制：避免恒定/近 0 数据被 autoRange 放大成波动曲线
+        Nozzle.clamp_min_y_span(self.plot_widget, 8.0)   # 偏航 ±4

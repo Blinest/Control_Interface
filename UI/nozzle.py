@@ -11,6 +11,8 @@ from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame, 
 from PyQt5.QtGui import QPainter, QColor
 from PyQt5.QtCore import Qt, QTimer
 
+import pyqtgraph as pg
+
 from Core.auth import GlobalHistory
 from Core.serial_worker import SerialWorker
 
@@ -462,9 +464,47 @@ class Nozzle(QWidget):
         layout.addWidget(progress)
         return frame, progress, lbl_val
 
-    def set_progress_value(self, progress, lbl_val, current, target):
-        """更新进度条：终点=目标值，进度=当前值。进度条始终从左向右填充"""
-        lbl_val.setText(f"{current:.2f}")
+    def create_embedded_curve_card(self, title, unit, color, curve_height=120):
+        """创建带内嵌透明实时曲线的进度卡片（目标/当前）
+
+        在 create_progress_card 基础上，进度条下方追加一条透明背景的实时曲线：
+        - 透明背景：setBackground(None) + WA_TranslucentBackground，露出灰色卡片底
+        - 隐藏坐标轴、禁用菜单与鼠标交互，避免抢走滚动区域的鼠标事件
+
+        返回 (frame, progress, lbl_val, plot_widget, curve_target, curve_current)。
+        """
+        frame, progress, lbl_val = self.create_progress_card(title, unit, color)
+        layout = frame.layout()
+
+        # 内嵌实时曲线（透明背景）
+        plot_widget = pg.PlotWidget()
+        plot_widget.setBackground(None)
+        plot_widget.setAttribute(Qt.WA_TranslucentBackground, True)
+        plot_widget.setFixedHeight(curve_height)
+        plot_widget.hideAxis('left')
+        plot_widget.hideAxis('bottom')
+        plot_widget.setMenuEnabled(False)
+        plot_widget.setMouseEnabled(False, False)
+        plot_widget.setClipToView(True)
+        plot_widget.showGrid(x=False, y=False)
+
+        curve_target = plot_widget.plot(name="目标", pen=pg.mkPen(color=color, width=6, style=Qt.DashLine))
+        curve_current = plot_widget.plot(name="当前", pen=pg.mkPen(color=color, width=6, style=Qt.SolidLine))
+
+        layout.addWidget(plot_widget)
+        return frame, progress, lbl_val, plot_widget, curve_target, curve_current
+
+    def set_progress_value(self, progress, lbl_val, current, target, label_as_percent=False):
+        """更新进度条：终点=目标值，进度=当前值。进度条始终从左向右填充
+
+        label_as_percent=True 时数值按「进度完成度百分比」显示：
+        |当前值| / |目标值| × 100%（目标为 0 时恒为 0%）。
+        """
+        if label_as_percent:
+            pct = abs(current) / abs(target) * 100 if target != 0 else 0.0
+            lbl_val.setText(f"{pct:.2f}")
+        else:
+            lbl_val.setText(f"{current:.2f}")
         # 无论目标正负，进度条均从左向右：用 |目标| 定终点，|当前| 填进度
         mag = abs(target)
         progress.setRange(0, max(1, int(round(mag * 100))))
@@ -472,6 +512,22 @@ class Nozzle(QWidget):
         # 进度 = |当前值|，clamp 到 [0, |目标|]
         value = max(min(abs(current), mag), 0)
         progress.setValue(int(value * 100))
+
+    @staticmethod
+    def clamp_min_y_span(plot_widget, min_span):
+        """autoRange 后若 Y 跨度小于 min_span，则扩展到以数据中心为 ±min_span/2
+
+        避免恒定/近 0 数据的微小噪声被 pyqtgraph autoRange 放大成大幅波动曲线
+        （如目标线为常量 0、当前线有 ±0.01 噪声时，Y 轴会被压到 span≈0.02）。
+        """
+        vb = plot_widget.getPlotItem().getViewBox()
+        vb.updateAutoRange()
+        y_range = vb.viewRange()[1]
+        span = y_range[1] - y_range[0]
+        if span < min_span:
+            center = (y_range[0] + y_range[1]) / 2.0
+            half = min_span / 2.0
+            vb.setYRange(center - half, center + half, padding=0)
 
 
     def create_motor_card(self, title, color="#000"):

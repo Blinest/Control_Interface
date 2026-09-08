@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox, QMenu
 
 # 自定义类
 from UI.graph_window_lyz import HistoryFileDialog
+from UI.nozzle import Nozzle
 
 
 # 工具类
@@ -429,16 +430,16 @@ class GraphController(QObject):
             v3 = y3_data[idx] if y3_data is not None and idx < len(y3_data) else 0.0
 
             if self.ui.is_motor:
-                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.3f}")
-                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.3f}")
-                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.3f}")
+                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.2f}")
+                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.2f}")
+                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.2f}")
             else:
                 # 传感器模式同理，可自定义标签
-                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.3f}")
-                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.3f}")
-                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.3f}")
+                disp_items.append(f"{prefix}{dev_idx+1}: {v1:.2f}")
+                vel_items.append(f"{prefix}{dev_idx+1}: {v2:.2f}")
+                acc_items.append(f"{prefix}{dev_idx+1}: {v3:.2f}")
 
-        lines = [f"X = {actual_x:.3f}"]
+        lines = [f"X = {actual_x:.2f}"]
         if disp_items:
             if self.ui.is_motor:
                 lines.append("位移: " + ", ".join(disp_items))
@@ -473,6 +474,20 @@ class BendGraphController:
         self.window = window
         self.device_tab = device_tab
         self.window.set_controller(self)
+
+    def auto_focus(self):
+        """自动聚焦：两个曲线图各自自动缩放"""
+        self.window.plot_angle.autoRange()
+        Nozzle.clamp_min_y_span(self.window.plot_angle, 8.0)    # 偏航 ±4
+        self.window.plot_area.autoRange()
+        Nozzle.clamp_min_y_span(self.window.plot_area, 100.0)   # 面积 0~100
+
+    def reset_view(self):
+        """重置视图"""
+        self.window.plot_angle.setRange(xRange=None, yRange=None, padding=0.05)
+        Nozzle.clamp_min_y_span(self.window.plot_angle, 8.0)    # 偏航 ±4
+        self.window.plot_area.setRange(xRange=None, yRange=None, padding=0.05)
+        Nozzle.clamp_min_y_span(self.window.plot_area, 100.0)   # 面积 0~100
 
     def save_data(self):
         import os, csv

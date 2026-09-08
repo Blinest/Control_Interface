@@ -12,6 +12,9 @@ import csv
 from datetime import datetime
 import os
 
+# 自定义类（复用基类 Y 轴最小跨度钳制）
+from UI.nozzle import Nozzle
+
 
 class TwoDecimalAxisItem(pg.AxisItem):
     """坐标轴刻度保留两位小数"""
@@ -442,3 +445,5 @@ class BendGraphWindow(QDialog):
         self.curve_down_current.setData(times, down_currents)
         self.curve_up_target.setData(times, up_targets)
         self.curve_down_target.setData(times, down_targets)
+        # Y 轴最小跨度钳制：避免恒定/近 0 数据被 autoRange 放大成波动曲线
+        Nozzle.clamp_min_y_span(self.plot_widget, 30.0)   # 偏转 0~30

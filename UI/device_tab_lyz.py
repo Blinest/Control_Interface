@@ -50,17 +50,21 @@ class LyzDeviceTab(Nozzle):
         self.target_bend_angle = 0.0
         self.target_area_change = 100.0
         self.current_theta = 0.0        # 电机旋转角度（反推/偏转控制进度条用）
-        self.theta_target = 0.0         # theta 目标：零位 0 / 极限 ±45
+        self.theta_target = 0.0         # theta 目标：零位 0 / 极限 ±20（机构实际满行程）
 
         self.hist_bend_time = []       # 时间列表
         self.hist_bend_target = []     # 目标偏航角度列表
         self.hist_bend_current = []    # 当前偏航角度列表
         self.hist_area_target = []     # 目标截面面积变化列表
         self.hist_area_current = []    # 当前截面面积变化列表
+        self.hist_theta_target = []    # 目标 theta（反推控制）列表
+        self.hist_theta_current = []   # 当前 theta（反推控制）列表
         self.bend_graph_window = None  # 偏航曲线窗口实例
         self.bend_graph_controller = None
         self._last_bend_graph_update = 0.0
         self.bend_graph_update_interval = 0.1  # 曲线窗口刷新间隔，避免 10ms 重绘导致卡顿
+        self._last_embedded_update = 0.0       # 内嵌实时曲线刷新节流
+        self.embedded_update_interval = 0.1    # 与弹窗曲线刷新间隔一致
 
         self.m_page, self.s_page = 0, 0
         self.cards_motor, self.cards_sensor = [], []
@@ -211,17 +215,21 @@ class LyzDeviceTab(Nozzle):
         tab_bend = QWidget()
         v_bend = QVBoxLayout(tab_bend)
 
-        # --- 进度条卡片：偏转控制(theta) / 偏航角度 / 截面面积 ---
-        self.theta_progress_frame, self.theta_progress, self.theta_progress_val = \
-            self.create_progress_card("偏转控制(theta)", "deg", "#0078D7")
+        # --- 进度条卡片：反推控制(theta) / 偏航角度 / 截面面积 ---
+        # 每张卡片内嵌一条透明背景的实时曲线（目标虚线 / 当前实线）
+        self.theta_progress_frame, self.theta_progress, self.theta_progress_val, \
+            self.theta_plot, self.theta_curve_target, self.theta_curve_current = \
+            self.create_embedded_curve_card("反推控制", "%", "#0078D7")
         v_bend.addWidget(self.theta_progress_frame)
 
-        self.angle_progress_frame, self.angle_progress, self.angle_progress_val = \
-            self.create_progress_card("偏航角度", "deg", "#D13438")
+        self.angle_progress_frame, self.angle_progress, self.angle_progress_val, \
+            self.angle_plot, self.angle_curve_target, self.angle_curve_current = \
+            self.create_embedded_curve_card("偏航角度", "deg", "#D13438")
         v_bend.addWidget(self.angle_progress_frame)
 
-        self.area_progress_frame, self.area_progress, self.area_progress_val = \
-            self.create_progress_card("截面面积变化", "%", "#107C10")
+        self.area_progress_frame, self.area_progress, self.area_progress_val, \
+            self.area_plot, self.area_curve_target, self.area_curve_current = \
+            self.create_embedded_curve_card("截面面积变化", "%", "#107C10")
         v_bend.addWidget(self.area_progress_frame)
 
         self.tabs.addTab(tab_bend, "🔧 LYZ喷管运动数据监控")
@@ -384,6 +392,10 @@ class LyzDeviceTab(Nozzle):
             self.logger(f"❌ {error_msg}", level="ERROR", port=self.port_name)
             return
 
+        # 同步 theta 目标：闭合 -> 回零位(0°)，展开 -> 机构到满行程(±20°)
+        # 使嵌入曲线/进度条的目标线与实际线一致
+        self.theta_target = 0.0 if opened else 20.0
+
         frame = bytes.fromhex("AA 04 01 00 AF" if opened else "AA 04 01 01 B0")
         action = "闭合" if opened else "展开"
         detail = "反推控制闭合" if opened else "反推控制展开"
@@ -418,6 +430,7 @@ class LyzDeviceTab(Nozzle):
             self.spin_section.spin.setValue(100)
             self.target_bend_angle = 0
             self.target_area_change = 100
+            self.theta_target = 0.0      # 初态复位 -> theta 回零位
             frame = bytearray([0xAA, 0x05, 0x00])
             frame.append(sum(frame) & 0xFF)
             frame = bytes(frame)
@@ -468,8 +481,8 @@ class LyzDeviceTab(Nozzle):
         self.btn_cycle_motion.style().polish(self.btn_cycle_motion)
 
     def _send_cycle_motion_frame(self, opened):
-        """构建并发送循环运动帧：AA 06 00(启动) / AA 06 01(关闭) + 校验和"""
-        frame = bytearray([0xAA, 0x06, 0x00 if opened else 0x01])
+        """构建并发送循环运动帧：AA 06 01 00(启动) / AA 06 01 01(关闭) + 校验和"""
+        frame = bytearray([0xAA, 0x06, 0x01, 0x00 if opened else 0x01])
         frame.append(sum(frame) & 0xFF)
         self.worker.send_data(bytes(frame))
         action = "循环运动启动" if opened else "循环运动关闭"
@@ -545,8 +558,9 @@ class LyzDeviceTab(Nozzle):
 
         self.target_bend_angle = target_angle
 
-        # theta 目标随偏转方向：非零偏转 -> 极限 ±45°，零位 -> 0°
-        self.theta_target = 45.0 if target_angle > 0 else (-45.0 if target_angle < 0 else 0.0)
+        # theta 目标随偏转方向：非零偏转 -> 极限 ±20°，零位 -> 0°
+        # （±20° 为机构实际满行程，对应进度条 100%）
+        self.theta_target = 20.0 if target_angle > 0 else (-20.0 if target_angle < 0 else 0.0)
 
         direction = 0 if target_angle >= 0 else 1
         angle = abs(int(target_angle * 100))   # 转为整数（0.01度单位）
@@ -627,7 +641,7 @@ class LyzDeviceTab(Nozzle):
                                     self.current_area_change, self.target_area_change)
         if hasattr(self, 'theta_progress'):
             self.set_progress_value(self.theta_progress, self.theta_progress_val,
-                                    self.current_theta, self.theta_target)
+                                    self.current_theta, self.theta_target, label_as_percent=True)
 
     def update_motor_status_ball(self, idx=None):
         pass
@@ -645,12 +659,14 @@ class LyzDeviceTab(Nozzle):
         # 计算相对时间（秒，从 0 开始）
         current_time_sec = time.time() - self.start_time
 
-        # 偏航角度
+        # 偏航角度 / 截面面积 / theta
         self.hist_bend_time.append(current_time_sec)
         self.hist_bend_target.append(self.target_bend_angle)
         self.hist_bend_current.append(self.current_bend_angle)
         self.hist_area_target.append(self.target_area_change)
         self.hist_area_current.append(self.current_area_change)
+        self.hist_theta_target.append(self.theta_target)
+        self.hist_theta_current.append(self.current_theta)
 
         # 限制长度（保留最近60秒）
         while len(self.hist_bend_time) > 0 and self.hist_bend_time[0] < current_time_sec - 60:
@@ -659,6 +675,11 @@ class LyzDeviceTab(Nozzle):
             self.hist_bend_current.pop(0)
             self.hist_area_target.pop(0)
             self.hist_area_current.pop(0)
+            self.hist_theta_target.pop(0)
+            self.hist_theta_current.pop(0)
+
+        # 更新内嵌实时曲线（降频刷新，避免 10ms 重绘导致主线程卡死）
+        self._update_embedded_curves(current_time_sec)
 
         # 更新曲线窗口（如果已打开）：降频刷新 + 只绘制最近 20 秒数据，
         # 避免 10ms 一次全量重绘（60s*100Hz≈6000 点 * 4 条曲线）导致主线程卡死
@@ -678,6 +699,35 @@ class LyzDeviceTab(Nozzle):
                 )
 
         # LYZ 不记录电机/IMU历史数据，电机/IMU曲线仅 LQTS 使用。
+
+    def _update_embedded_curves(self, current_time_sec):
+        """刷新三张卡片内嵌的实时曲线（目标虚线 / 当前实线），节流 0.1s"""
+        if current_time_sec - self._last_embedded_update < self.embedded_update_interval:
+            return
+        self._last_embedded_update = current_time_sec
+        # 只绘制最近 20 秒
+        window_start = current_time_sec - 20
+        start_idx = 0
+        while start_idx < len(self.hist_bend_time) and self.hist_bend_time[start_idx] < window_start:
+            start_idx += 1
+        ts = self.hist_bend_time[start_idx:]
+        if not ts:
+            return
+        if hasattr(self, 'theta_curve_target'):
+            self.theta_curve_target.setData(ts, self.hist_theta_target[start_idx:])
+            self.theta_curve_current.setData(ts, self.hist_theta_current[start_idx:])
+            Nozzle.clamp_min_y_span(self.theta_plot, 40.0)   # 满行程 ±20
+            self.theta_plot.setXRange(max(0, ts[-1] - 20), ts[-1], padding=0)
+        if hasattr(self, 'angle_curve_target'):
+            self.angle_curve_target.setData(ts, self.hist_bend_target[start_idx:])
+            self.angle_curve_current.setData(ts, self.hist_bend_current[start_idx:])
+            Nozzle.clamp_min_y_span(self.angle_plot, 8.0)    # 偏航 ±4
+            self.angle_plot.setXRange(max(0, ts[-1] - 20), ts[-1], padding=0)
+        if hasattr(self, 'area_curve_target'):
+            self.area_curve_target.setData(ts, self.hist_area_target[start_idx:])
+            self.area_curve_current.setData(ts, self.hist_area_current[start_idx:])
+            Nozzle.clamp_min_y_span(self.area_plot, 100.0)   # 面积 0~100
+            self.area_plot.setXRange(max(0, ts[-1] - 20), ts[-1], padding=0)
 
     #----------辅助函数----------------#
     def refresh_bend_graph(self):

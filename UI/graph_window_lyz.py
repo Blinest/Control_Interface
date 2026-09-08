@@ -12,6 +12,15 @@ import csv
 from datetime import datetime
 import os
 
+# 自定义类（复用基类 Y 轴最小跨度钳制）
+from UI.nozzle import Nozzle
+
+
+class TwoDecimalAxisItem(pg.AxisItem):
+    """坐标轴刻度保留两位小数"""
+    def tickStrings(self, values, scale, spacing):
+        return [f"{value * scale:.2f}" for value in values]
+
 
 class GraphWindowUI(QDialog):
     def __init__(self, title, is_motor=True, num_devices=1, parent=None, enable_auto_save=True, is_history_mode=False):
@@ -84,7 +93,13 @@ class GraphWindowUI(QDialog):
 
         # --- 绘图区域 ---
         pg.setConfigOptions(antialias=True)
-        self.plot_widget = pg.PlotWidget(background='w')
+        self.plot_widget = pg.PlotWidget(
+            background='w',
+            axisItems={
+                'bottom': TwoDecimalAxisItem(orientation='bottom'),
+                'left': TwoDecimalAxisItem(orientation='left')
+            }
+        )
         self.plot_widget.addLegend()
         self.plot_widget.setLabel('bottom', '时间', units='秒')
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
@@ -351,66 +366,44 @@ class BendGraphWindow(QDialog):
 
         # 控制按钮
         btn_layout = QHBoxLayout()
+        self.btn_focus = QPushButton("🎯 一键聚焦")
+        self.btn_reset = QPushButton("🔄 重置视图")
         self.btn_save = QPushButton("💾 保存数据")
-        self.btn_save.setFixedHeight(36)
-        self.btn_save.setStyleSheet("""
-            QPushButton {
-                background-color: #0078D7;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                font-weight: bold;
-                padding: 6px 12px;
-            }
-            QPushButton:hover { background-color: #005A9E; }
-        """)
-        self.btn_autofocus = QPushButton("🎯 自动聚焦")
-        self.btn_autofocus.setFixedHeight(36)
-        self.btn_autofocus.setStyleSheet("""
-            QPushButton {
-                background-color: #53565b;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                font-weight: bold;
-                padding: 6px 12px;
-            }
-            QPushButton:hover { background-color: #3a3c3f; }
-        """)
-        self.btn_autofocus.clicked.connect(self.auto_focus)
-        btn_layout.addWidget(self.btn_autofocus)
-        btn_layout.addStretch()
+        btn_layout.addWidget(self.btn_focus)
+        btn_layout.addWidget(self.btn_reset)
         btn_layout.addWidget(self.btn_save)
+        btn_layout.addStretch()
         self.layout.addLayout(btn_layout)
 
         # ---- 偏转角度曲线图 ----
-        self.plot_angle = pg.PlotWidget()
-        self.plot_angle.setBackground('w')
-        self.plot_angle.showGrid(x=True, y=True, alpha=0.4)
+        pg.setConfigOptions(antialias=True)
+        self.plot_angle = pg.PlotWidget(
+            background='w',
+            axisItems={
+                'bottom': TwoDecimalAxisItem(orientation='bottom'),
+                'left': TwoDecimalAxisItem(orientation='left')
+            }
+        )
+        self.plot_angle.showGrid(x=True, y=True, alpha=0.3)
         self.plot_angle.addLegend()
-        self.plot_angle.setLabel('bottom', '时间', units='s', color='#000')
-        self.plot_angle.setLabel('left', '偏转角度', units='deg', color='#000')
-        self.plot_angle.setTitle("偏转角度曲线", color='#333')
-        self.plot_angle.getAxis('bottom').setPen('#333')
-        self.plot_angle.getAxis('left').setPen('#333')
-        self.plot_angle.getAxis('bottom').setTextPen('#333')
-        self.plot_angle.getAxis('left').setTextPen('#333')
+        self.plot_angle.setLabel('bottom', '时间', units='秒')
+        self.plot_angle.setLabel('left', '偏转角度', units='度')
 
         self.curve_target = self.plot_angle.plot(name="目标偏转角度", pen=pg.mkPen(color='#D13438', width=2))
         self.curve_current = self.plot_angle.plot(name="当前偏转角度", pen=pg.mkPen(color='#FF8C00', width=2))
 
         # ---- 截面面积变化曲线图 ----
-        self.plot_area = pg.PlotWidget()
-        self.plot_area.setBackground('w')
-        self.plot_area.showGrid(x=True, y=True, alpha=0.4)
+        self.plot_area = pg.PlotWidget(
+            background='w',
+            axisItems={
+                'bottom': TwoDecimalAxisItem(orientation='bottom'),
+                'left': TwoDecimalAxisItem(orientation='left')
+            }
+        )
+        self.plot_area.showGrid(x=True, y=True, alpha=0.3)
         self.plot_area.addLegend()
-        self.plot_area.setLabel('bottom', '时间', units='s', color='#000')
-        self.plot_area.setLabel('left', '截面面积变化', units='%', color='#000')
-        self.plot_area.setTitle("截面面积变化曲线", color='#333')
-        self.plot_area.getAxis('bottom').setPen('#333')
-        self.plot_area.getAxis('left').setPen('#333')
-        self.plot_area.getAxis('bottom').setTextPen('#333')
-        self.plot_area.getAxis('left').setTextPen('#333')
+        self.plot_area.setLabel('bottom', '时间', units='秒')
+        self.plot_area.setLabel('left', '截面面积变化', units='%')
 
         self.curve_area_target = self.plot_area.plot(name="目标截面面积变化", pen=pg.mkPen(color='#107C10', width=2))
         self.curve_area_current = self.plot_area.plot(name="当前截面面积变化", pen=pg.mkPen(color='#0078D7', width=2))
@@ -418,15 +411,19 @@ class BendGraphWindow(QDialog):
         self.layout.addWidget(self.plot_angle)
         self.layout.addWidget(self.plot_area)
 
+        # 坐标显示
+        self.coord_label = QLabel("点击曲线查看该点坐标")
+        self.coord_label.setStyleSheet("background-color: #F5F5F5; border: 1px solid #CCC; padding: 5px;")
+        self.layout.addWidget(self.coord_label)
+
+        self._controller = None
+
     def set_controller(self, controller):
         """绑定控制器"""
-        self.controller = controller
+        self._controller = controller
+        self.btn_focus.clicked.connect(controller.auto_focus)
+        self.btn_reset.clicked.connect(controller.reset_view)
         self.btn_save.clicked.connect(controller.save_data)
-
-    def auto_focus(self):
-        """自动聚焦：两个曲线图各自自动缩放"""
-        self.plot_angle.autoRange()
-        self.plot_area.autoRange()
 
     def update_data(self, times, targets, currents, area_targets=None, area_currents=None):
         if not times:
@@ -435,6 +432,10 @@ class BendGraphWindow(QDialog):
         self.curve_current.setData(times, currents)
         self.curve_area_target.setData(times, area_targets or [])
         self.curve_area_current.setData(times, area_currents or [])
+
+        # Y 轴最小跨度钳制：避免恒定/近 0 数据被 autoRange 放大成波动曲线
+        Nozzle.clamp_min_y_span(self.plot_angle, 8.0)    # 偏航 ±4
+        Nozzle.clamp_min_y_span(self.plot_area, 100.0)   # 面积 0~100
 
         # 自动滚动 X 轴：固定显示最近 20 秒
         last_t = times[-1]

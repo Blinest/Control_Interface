@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox, QMenu
 
 # 自定义类
 from UI.graph_window_sw import HistoryFileDialog
+from UI.nozzle import Nozzle
 
 
 # 工具类
@@ -471,9 +472,11 @@ class BendGraphController:
         if not self.window.time_data:
             return
         self.window.plot_widget.autoRange()
+        Nozzle.clamp_min_y_span(self.window.plot_widget, 30.0)   # 偏转 0~30
 
     def reset_view(self):
         self.window.plot_widget.setRange(xRange=None, yRange=None, padding=0.05)
+        Nozzle.clamp_min_y_span(self.window.plot_widget, 30.0)   # 偏转 0~30
 
     def save_data(self):
         # 保存弯曲数据为 CSV
